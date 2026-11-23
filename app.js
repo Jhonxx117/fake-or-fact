@@ -1,4 +1,5 @@
 // ===== RÉGLAGES =====
+const VERSION='3'; // à changer à chaque mise à jour du code, et dans index.html (?v=)
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollWin:3,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -28,7 +29,7 @@ async function create(){
   const name=$('nm').value.trim();if(!name)return err('Enter a nickname.');
   const code=Array.from({length:4},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.random()*31|0]).join('');
   pid=uid();
-  try{await db.ref('rooms/'+code).set({host:pid,phase:'lobby',round:0,players:{[pid]:{name,score:0}}})}catch(e){return err('Connection failed. Check your network.')}
+  try{await db.ref('rooms/'+code).set({ver:VERSION,host:pid,phase:'lobby',round:0,players:{[pid]:{name,score:0}}})}catch(e){return err('Connection failed. Check your network.')}
   enter(code);
 }
 async function join(code,name){
@@ -51,7 +52,7 @@ function leave(){store.del('fof');if(ref)ref.off();ref=R=null;history.replaceSta
 // ----- Affichage selon la phase -----
 function render(){
   if(R.phase==='lobby'){seenRound=0;sel=null}
-  try{({lobby,role,debate,vote,verdict,end:final})[R.phase]()}catch(e){show(`<p class="FAKE">Display error: ${esc(e.message)}</p>`)}
+  try{(R.ver!==VERSION?outdated:({lobby,role,debate,vote,verdict,end:final})[R.phase])()}catch(e){show(`<p class="FAKE">Display error: ${esc(e.message)}</p>`)}
   app.insertAdjacentHTML('beforeend',`<div class="foot">${isHost()?`${R.phase==='lobby'?'':'<button id="rs" class="ghost">Restart the game</button>'}<button id="cl" class="ghost">Close the room</button>`:'<button id="lv" class="ghost">Leave the game</button>'}</div>`);
   if(isHost()){
     if($('rs'))$('rs').onclick=()=>confirm('Restart? Scores are reset and everyone goes back to the lobby.')&&restart();
@@ -60,12 +61,16 @@ function render(){
   const ids=act();
   if(isHost()&&R.phase==='vote'&&ids.every(i=>(R.votes||{})[i]))reveal();
 }
+function outdated(){
+  show(`<p class="FAKE">Your page is not up to date (yours: ${VERSION}, the room: ${esc(R.ver||'old')}).</p><p>Reload the page. If this message stays, close the tab and open the site again from the QR code.</p><button id="rl">Reload</button>`);
+  $('rl').onclick=()=>location.reload();
+}
 function restart(){
   const u={phase:'lobby',round:0,used:null,missed:null,roles:null,hands:null,spare:null,plays:null,post:null,votes:null,verdict:null,endsAt:null};
   Object.keys(R.players).forEach(i=>u[`players/${i}/score`]=0);done=0;ref.update(u);
 }
 function lobby(){
-  const url=location.origin+location.pathname+'?room='+room,ids=Object.keys(R.players),qr=qrcode(0,'M');
+  const url=location.origin+location.pathname+'?room='+room+'&v='+VERSION,ids=Object.keys(R.players),qr=qrcode(0,'M');
   qr.addData(url);qr.make();
   show(`<h1>Room ${room}</h1><p class="sub">Scan to join, or enter the code on the home page.</p>
   <div class="qr">${qr.createSvgTag(5,0)}</div><p class="muted">${esc(url)}</p>
@@ -89,7 +94,7 @@ function startRound(){
 function role(){
   if(R.round!==seenRound){seenRound=R.round;roleShown=false;sel=null}
   if(!R.roles||!R.roles[pid]){show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><div class="box headline">${esc(R.headline)}</div><p>A round is already in progress. You will play from the next round.</p>`);return}
-  const my=R.roles[pid],hand=R.hands[pid],played=(R.plays||{})[pid],ids=act(),np=ids.filter(i=>(R.plays||{})[i]).length,sp=(R.spare||{})[pid];
+  const my=R.roles[pid],hand=(R.hands||{})[pid]||[],played=(R.plays||{})[pid],ids=act(),np=ids.filter(i=>(R.plays||{})[i]).length,sp=(R.spare||{})[pid];
   const goal=my==='Troll'?'Make the post FAKE without being caught: play a card with a red flag, then convince the table to SHARE.':'Build a reliable post. Read each card, play the one you trust, and find the Troll (there may be none).';
   show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><h2>Breaking news</h2><div class="box headline">${esc(R.headline)}</div>
   <button id="rv" class="ghost">${roleShown?'Hide my role and cards':'Show my role and cards'}</button>
