@@ -50,8 +50,19 @@ function leave(){store.del('fof');if(ref)ref.off();ref=R=null;history.replaceSta
 
 // ----- Affichage selon la phase -----
 function render(){
+  if(R.phase==='lobby'){seenRound=0;sel=null}
   ({lobby,role,debate,vote,verdict,end:final})[R.phase]();
-  if(isHost()&&R.phase==='vote'&&Object.keys(R.votes||{}).length===Object.keys(R.players).length)reveal();
+  app.insertAdjacentHTML('beforeend',`<div class="foot">${isHost()?`${R.phase==='lobby'?'':'<button id="rs" class="ghost">Restart the game</button>'}<button id="cl" class="ghost">Close the room</button>`:'<button id="lv" class="ghost">Leave the game</button>'}</div>`);
+  if(isHost()){
+    if($('rs'))$('rs').onclick=()=>confirm('Restart? Scores are reset and everyone goes back to the lobby.')&&restart();
+    $('cl').onclick=()=>confirm('Close the room for everyone?')&&ref.remove();
+  }else $('lv').onclick=()=>{if(!confirm('Leave the game?'))return;const me=ref.child('players/'+pid);leave();me.remove()};
+  const ids=Object.keys(R.players);
+  if(isHost()&&R.phase==='vote'&&ids.every(i=>(R.votes||{})[i]))reveal();
+}
+function restart(){
+  const u={phase:'lobby',round:0,used:null,missed:null,roles:null,hands:null,spare:null,plays:null,post:null,votes:null,verdict:null,endsAt:null};
+  Object.keys(R.players).forEach(i=>u[`players/${i}/score`]=0);done=0;ref.update(u);
 }
 function lobby(){
   const url=location.origin+location.pathname+'?room='+room,ids=Object.keys(R.players),qr=qrcode(0,'M');
@@ -77,7 +88,7 @@ function startRound(){
 }
 function role(){
   if(R.round!==seenRound){seenRound=R.round;roleShown=false;sel=null}
-  const my=R.roles[pid],hand=R.hands[pid],played=(R.plays||{})[pid],ids=Object.keys(R.players),np=Object.keys(R.plays||{}).length,sp=(R.spare||{})[pid];
+  const my=R.roles[pid],hand=R.hands[pid],played=(R.plays||{})[pid],ids=Object.keys(R.players),np=ids.filter(i=>(R.plays||{})[i]).length,sp=(R.spare||{})[pid];
   const goal=my==='Troll'?'Make the post FAKE without being caught: play a card with a red flag, then convince the table to SHARE.':'Build a reliable post. Read each card, play the one you trust, and find the Troll (there may be none).';
   show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><h2>Breaking news</h2><div class="box headline">${esc(R.headline)}</div>
   <button id="rv" class="ghost">${roleShown?'Hide my role and cards':'Show my role and cards'}</button>
@@ -135,8 +146,7 @@ function final(){
   const miss=[...new Set(R.missed||[])].map(cardOf).filter(Boolean);
   show(`<h1>Final scores</h1>${scores()}
   ${miss.length?`<h2>Red flags the table missed</h2><ul>${miss.map(c=>`<li><strong>${esc(c.text)}</strong><br>${esc(c.why)}</li>`).join('')}</ul>`:'<p>No red flag slipped through. Well done.</p>'}
-  ${isHost()?'<button id="cl">Close the room</button>':'<button id="lv">Leave</button>'}`);
-  if(isHost())$('cl').onclick=()=>ref.remove();else $('lv').onclick=leave;
+`);
 }
 
 // ----- Démarrage : reprend la partie en cours après un rechargement -----

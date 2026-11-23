@@ -24,3 +24,4 @@ li,p{overflow-wrap:anywhere}
 .card{display:block;width:100%;text-align:left;margin:.5rem 0;background:transparent;color:var(--fg);border:1px solid var(--line)}
 .card.on{border-color:var(--accent);outline:2px solid var(--accent)}
 .post{padding-left:1.2rem}.post li{margin:.7rem 0}
+.foot{margin-top:2.5rem;border-top:1px solid var(--line);padding-top:.5rem}
