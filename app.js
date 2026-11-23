@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='4'; // à changer à chaque mise à jour du code, et dans index.html (?v=)
+const VERSION='5'; // à changer à chaque mise à jour du code, et dans index.html (?v=)
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollWin:3,frenchPenalty:1,maxTrolls:2,minPlayers:2,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
