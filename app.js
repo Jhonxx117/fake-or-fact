@@ -1,6 +1,6 @@
 // ===== RÉGLAGES =====
-const VERSION='3'; // à changer à chaque mise à jour du code, et dans index.html (?v=)
-const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollWin:3,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6};
+const VERSION='4'; // à changer à chaque mise à jour du code, et dans index.html (?v=)
+const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollWin:3,frenchPenalty:1,maxTrolls:2,minPlayers:2,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
 const db=firebase.database(),app=document.getElementById('app'),$=id=>document.getElementById(id);
@@ -9,7 +9,7 @@ const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math
 const uid=()=>Math.random().toString(36).slice(2,10);
 const store={get:k=>{try{return sessionStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{sessionStorage.setItem(k,v)}catch(e){}},del:k=>{try{sessionStorage.removeItem(k)}catch(e){}}};
 const show=h=>{app.innerHTML=h},err=m=>{const e=$('err');if(e)e.textContent=m};
-let room,pid,ref,R,offset=0,roleShown=false,seenRound=0,sel=null,done=0;
+let room,pid,ref,R,offset=0,roleShown=false,seenRound=0,sel=null,done=0,lastPhase=null;
 db.ref('.info/serverTimeOffset').on('value',s=>{offset=s.val()||0});
 const now=()=>Date.now()+offset,isHost=()=>R&&R.host===pid,pn=i=>esc(R.players[i].name);
 const act=()=>Object.keys(R.players).filter(i=>R.roles&&R.roles[i]);
@@ -43,9 +43,9 @@ async function join(code,name){
   pid=uid();await db.ref(`rooms/${code}/players/${pid}`).set({name,score:0});enter(code);
 }
 function enter(code){
-  room=code;done=0;store.set('fof',JSON.stringify({code,pid}));ref=db.ref('rooms/'+code);
+  room=code;done=0;lastPhase=null;store.set('fof',JSON.stringify({code,pid}));ref=db.ref('rooms/'+code);
   ref.on('value',s=>{R=s.val();if(!R){leave();return}render()});
-  setInterval(updTimer,500);
+  setInterval(updTimer,500);setInterval(beat,120000);cleanup();
 }
 function leave(){store.del('fof');if(ref)ref.off();ref=R=null;history.replaceState(null,'',location.pathname);home()}
 
@@ -56,17 +56,35 @@ function render(){
   app.insertAdjacentHTML('beforeend',`<div class="foot">${isHost()?`${R.phase==='lobby'?'':'<button id="rs" class="ghost">Restart the game</button>'}<button id="cl" class="ghost">Close the room</button>`:'<button id="lv" class="ghost">Leave the game</button>'}</div>`);
   if(isHost()){
     if($('rs'))$('rs').onclick=()=>confirm('Restart? Scores are reset and everyone goes back to the lobby.')&&restart();
-    $('cl').onclick=()=>confirm('Close the room for everyone?')&&ref.remove();
+    $('cl').onclick=()=>confirm('Close the room for everyone?')&&closeRoom();
   }else $('lv').onclick=()=>{if(!confirm('Leave the game?'))return;const me=ref.child('players/'+pid);leave();me.remove()};
   const ids=act();
+  if(isHost()&&R.phase!==lastPhase){lastPhase=R.phase;beat()}
   if(isHost()&&R.phase==='vote'&&ids.every(i=>(R.votes||{})[i]))reveal();
 }
 function outdated(){
   show(`<p class="FAKE">Your page is not up to date (yours: ${VERSION}, the room: ${esc(R.ver||'old')}).</p><p>Reload the page. If this message stays, close the tab and open the site again from the QR code.</p><button id="rl">Reload</button>`);
   $('rl').onclick=()=>location.reload();
 }
+// ----- Nettoyage des salles -----
+// index/<code> = {t: dernier signal du Host, endAt: fin de partie}. Seul le Host envoie un signal.
+function beat(){
+  if(!ref||!R||!isHost())return;
+  db.ref('index/'+room).set({t:firebase.database.ServerValue.TIMESTAMP,endAt:R.endAt||null});
+}
+function closeRoom(){const ix=db.ref('index/'+room);ref.remove();ix.remove()}
+async function cleanup(){
+  try{
+    const s=await db.ref('index').get();if(!s.exists())return;
+    Object.entries(s.val()).forEach(([code,v])=>{
+      if(code===room)return;
+      const idle=now()-(v.t||0)>CONFIG.idleMinutes*6e4,over=v.endAt&&now()-v.endAt>CONFIG.endedMinutes*6e4;
+      if(idle||over){db.ref('rooms/'+code).remove();db.ref('index/'+code).remove()}
+    });
+  }catch(e){}
+}
 function restart(){
-  const u={phase:'lobby',round:0,used:null,missed:null,roles:null,hands:null,spare:null,plays:null,post:null,votes:null,verdict:null,endsAt:null};
+  const u={phase:'lobby',round:0,used:null,missed:null,roles:null,hands:null,spare:null,plays:null,post:null,votes:null,verdict:null,endsAt:null,endAt:null};
   Object.keys(R.players).forEach(i=>u[`players/${i}/score`]=0);done=0;ref.update(u);
 }
 function lobby(){
@@ -83,7 +101,7 @@ const cardBox=c=>`<span class="muted">${c.category}</span><br>${esc(c.text)}`;
 const postBox=mark=>`<ol class="post">${R.post.map(id=>{const c=cardOf(id);return `<li>${cardBox(c)}${mark&&c.type==='redflag'?`<br><strong class="FAKE">Red flag:</strong> ${esc(c.why)}`:''}</li>`}).join('')}</ol>`;
 function startRound(){
   const ids=Object.keys(R.players),n=R.round+1,used=R.used||[],left=HEADLINES.map((_,i)=>i).filter(i=>!used.includes(i));
-  if(n>CONFIG.rounds||!left.length)return ref.update({phase:'end'});
+  if(n>CONFIG.rounds||!left.length)return ref.update({phase:'end',endAt:firebase.database.ServerValue.TIMESTAMP});
   const k=left[Math.random()*left.length|0],max=ids.length>=5?CONFIG.maxTrolls:1,t=Math.floor(Math.random()*(max+1)),roles={},hands={},spare={};
   const pool=ty=>shuffle(CARDS.filter(c=>c.type===ty).map(c=>c.id)),F=pool('redflag'),Rl=pool('reliable'),N=pool('neutral');
   shuffle(ids).forEach((i,j)=>roles[i]=j<t?'Troll':'Citizen');
@@ -156,6 +174,7 @@ function final(){
 
 // ----- Démarrage : reprend la partie en cours après un rechargement -----
 (async()=>{
+  cleanup();
   const sv=JSON.parse(store.get('fof')||'null'),q=(new URLSearchParams(location.search).get('room')||'').toUpperCase();
   if(sv&&(!q||q===sv.code)){
     try{const s=await db.ref(`rooms/${sv.code}/players/${sv.pid}`).get();if(s.exists()){pid=sv.pid;return enter(sv.code)}}catch(e){}
