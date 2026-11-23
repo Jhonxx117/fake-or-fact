@@ -11,6 +11,7 @@ const show=h=>{app.innerHTML=h},err=m=>{const e=$('err');if(e)e.textContent=m};
 let room,pid,ref,R,offset=0,roleShown=false,seenRound=0,sel=null,done=0;
 db.ref('.info/serverTimeOffset').on('value',s=>{offset=s.val()||0});
 const now=()=>Date.now()+offset,isHost=()=>R&&R.host===pid,pn=i=>esc(R.players[i].name);
+const act=()=>Object.keys(R.players).filter(i=>R.roles&&R.roles[i]);
 const scores=()=>`<ul>${Object.keys(R.players).sort((a,b)=>R.players[b].score-R.players[a].score).map(i=>`<li>${pn(i)}: ${R.players[i].score}</li>`).join('')}</ul>`;
 
 // ----- Accueil, création, connexion -----
@@ -36,7 +37,6 @@ async function join(code,name){
   let s;try{s=await db.ref('rooms/'+code).get()}catch(e){return err('Connection failed. Check your network.')}
   if(!s.exists())return err('Room not found. Check the code.');
   const r=s.val(),ps=Object.values(r.players||{});
-  if(r.phase!=='lobby')return err('This game has already started.');
   if(ps.length>=CONFIG.maxPlayers)return err('The room is full.');
   if(ps.some(p=>p.name.toLowerCase()===name.toLowerCase()))return err('This nickname is taken.');
   pid=uid();await db.ref(`rooms/${code}/players/${pid}`).set({name,score:0});enter(code);
@@ -51,13 +51,13 @@ function leave(){store.del('fof');if(ref)ref.off();ref=R=null;history.replaceSta
 // ----- Affichage selon la phase -----
 function render(){
   if(R.phase==='lobby'){seenRound=0;sel=null}
-  ({lobby,role,debate,vote,verdict,end:final})[R.phase]();
+  try{({lobby,role,debate,vote,verdict,end:final})[R.phase]()}catch(e){show(`<p class="FAKE">Display error: ${esc(e.message)}</p>`)}
   app.insertAdjacentHTML('beforeend',`<div class="foot">${isHost()?`${R.phase==='lobby'?'':'<button id="rs" class="ghost">Restart the game</button>'}<button id="cl" class="ghost">Close the room</button>`:'<button id="lv" class="ghost">Leave the game</button>'}</div>`);
   if(isHost()){
     if($('rs'))$('rs').onclick=()=>confirm('Restart? Scores are reset and everyone goes back to the lobby.')&&restart();
     $('cl').onclick=()=>confirm('Close the room for everyone?')&&ref.remove();
   }else $('lv').onclick=()=>{if(!confirm('Leave the game?'))return;const me=ref.child('players/'+pid);leave();me.remove()};
-  const ids=Object.keys(R.players);
+  const ids=act();
   if(isHost()&&R.phase==='vote'&&ids.every(i=>(R.votes||{})[i]))reveal();
 }
 function restart(){
@@ -88,7 +88,8 @@ function startRound(){
 }
 function role(){
   if(R.round!==seenRound){seenRound=R.round;roleShown=false;sel=null}
-  const my=R.roles[pid],hand=R.hands[pid],played=(R.plays||{})[pid],ids=Object.keys(R.players),np=ids.filter(i=>(R.plays||{})[i]).length,sp=(R.spare||{})[pid];
+  if(!R.roles||!R.roles[pid]){show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><div class="box headline">${esc(R.headline)}</div><p>A round is already in progress. You will play from the next round.</p>`);return}
+  const my=R.roles[pid],hand=R.hands[pid],played=(R.plays||{})[pid],ids=act(),np=ids.filter(i=>(R.plays||{})[i]).length,sp=(R.spare||{})[pid];
   const goal=my==='Troll'?'Make the post FAKE without being caught: play a card with a red flag, then convince the table to SHARE.':'Build a reliable post. Read each card, play the one you trust, and find the Troll (there may be none).';
   show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><h2>Breaking news</h2><div class="box headline">${esc(R.headline)}</div>
   <button id="rv" class="ghost">${roleShown?'Hide my role and cards':'Show my role and cards'}</button>
@@ -113,18 +114,17 @@ function updTimer(){
   const l=Math.max(0,Math.ceil((R.endsAt-now())/1000));t.textContent=l;if(l<=0&&isHost())toVote();
 }
 function vote(){
-  const ids=Object.keys(R.players),v=R.votes||{},mine=v[pid];
-  show(`<h2>Vote</h2><div class="box headline">${esc(R.headline)}</div>${postBox(false)}<p>Is this post reliable enough to share?</p>
-  <button id="s" class="${mine==='SHARE'?'':'ghost'}">SHARE</button><button id="r" class="${mine==='REPORT'?'':'ghost'}">REPORT</button>
+  const ids=act(),v=R.votes||{},mine=v[pid];
+  show(`<h2>Vote</h2><div class="box headline">${esc(R.headline)}</div>${postBox(false)}${R.roles[pid]?`<p>Is this post reliable enough to share?</p>
+  <button id="s" class="${mine==='SHARE'?'':'ghost'}">SHARE</button><button id="r" class="${mine==='REPORT'?'':'ghost'}">REPORT</button>`:'<p>You will play from the next round.</p>'}
   <h2>Votes in</h2><p>${ids.map(i=>`${pn(i)} ${v[i]?'✓':'…'}`).join(', ')}</p>
   ${isHost()?'<button id="go" class="ghost">Reveal verdict now</button>':'<p class="muted">The verdict appears when everyone has voted.</p>'}`);
-  $('s').onclick=()=>ref.child('votes/'+pid).set('SHARE');
-  $('r').onclick=()=>ref.child('votes/'+pid).set('REPORT');
+  if($('s')){$('s').onclick=()=>ref.child('votes/'+pid).set('SHARE');$('r').onclick=()=>ref.child('votes/'+pid).set('REPORT')}
   if(isHost())$('go').onclick=reveal;
 }
 function reveal(){
   if(done===R.round)return;done=R.round;
-  const flags=R.post.filter(id=>cardOf(id).type==='redflag'),fake=flags.length>0,votes=R.votes||{},ids=Object.keys(R.players);
+  const flags=R.post.filter(id=>cardOf(id).type==='redflag'),fake=flags.length>0,votes=R.votes||{},ids=act();
   const shared=ids.filter(i=>votes[i]==='SHARE').length>ids.length/2,good=fake?'REPORT':'SHARE',upd={};
   ids.forEach(i=>{let s=R.players[i].score;if(votes[i]===good)s+=CONFIG.pointsCorrectVote;if(fake&&shared&&R.roles[i]==='Troll')s+=CONFIG.pointsTrollWin;upd[`players/${i}/score`]=s});
   upd.phase='verdict';upd.verdict={fake,shared};
