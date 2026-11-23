@@ -8,7 +8,7 @@ const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math
 const uid=()=>Math.random().toString(36).slice(2,10);
 const store={get:k=>{try{return sessionStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{sessionStorage.setItem(k,v)}catch(e){}},del:k=>{try{sessionStorage.removeItem(k)}catch(e){}}};
 const show=h=>{app.innerHTML=h},err=m=>{const e=$('err');if(e)e.textContent=m};
-let room,pid,ref,R,offset=0,draft='',roleShown=false,seenRound=0;
+let room,pid,ref,R,offset=0,roleShown=false,seenRound=0,sel=null,done=0;
 db.ref('.info/serverTimeOffset').on('value',s=>{offset=s.val()||0});
 const now=()=>Date.now()+offset,isHost=()=>R&&R.host===pid,pn=i=>esc(R.players[i].name);
 const scores=()=>`<ul>${Object.keys(R.players).sort((a,b)=>R.players[b].score-R.players[a].score).map(i=>`<li>${pn(i)}: ${R.players[i].score}</li>`).join('')}</ul>`;
@@ -42,7 +42,7 @@ async function join(code,name){
   pid=uid();await db.ref(`rooms/${code}/players/${pid}`).set({name,score:0});enter(code);
 }
 function enter(code){
-  room=code;store.set('fof',JSON.stringify({code,pid}));ref=db.ref('rooms/'+code);
+  room=code;done=0;store.set('fof',JSON.stringify({code,pid}));ref=db.ref('rooms/'+code);
   ref.on('value',s=>{R=s.val();if(!R){leave();return}render()});
   setInterval(updTimer,500);
 }
@@ -50,10 +50,8 @@ function leave(){store.del('fof');if(ref)ref.off();ref=R=null;history.replaceSta
 
 // ----- Affichage selon la phase -----
 function render(){
-  const c=$('codes');if(c)draft=c.value;const had=c&&document.activeElement===c;
-  if(R.phase!=='vote')draft='';
   ({lobby,role,debate,vote,verdict,end:final})[R.phase]();
-  const n=$('codes');if(n){n.value=draft;if(had)n.focus()}
+  if(isHost()&&R.phase==='vote'&&Object.keys(R.votes||{}).length===Object.keys(R.players).length)reveal();
 }
 function lobby(){
   const url=location.origin+location.pathname+'?room='+room,ids=Object.keys(R.players),qr=qrcode(0,'M');
@@ -64,26 +62,37 @@ function lobby(){
   ${isHost()?`<button id="st" ${ids.length<CONFIG.minPlayers?'disabled':''}>Start game</button>${ids.length<CONFIG.minPlayers?'<p class="muted">At least 3 players needed.</p>':''}`:'<p class="muted">Waiting for the host to start.</p>'}`);
   if(isHost())$('st').onclick=startRound;
 }
+const cardOf=id=>CARDS.find(c=>c.id===id);
+const cardBox=c=>`<span class="muted">${c.category}</span><br>${esc(c.text)}`;
+const postBox=mark=>`<ol class="post">${R.post.map(id=>{const c=cardOf(id);return `<li>${cardBox(c)}${mark&&c.type==='redflag'?`<br><strong class="FAKE">Red flag:</strong> ${esc(c.why)}`:''}</li>`}).join('')}</ol>`;
 function startRound(){
   const ids=Object.keys(R.players),n=R.round+1,used=R.used||[],left=HEADLINES.map((_,i)=>i).filter(i=>!used.includes(i));
   if(n>CONFIG.rounds||!left.length)return ref.update({phase:'end'});
-  const k=left[Math.random()*left.length|0],max=ids.length>=5?CONFIG.maxTrolls:1,t=Math.floor(Math.random()*(max+1)),roles={};
+  const k=left[Math.random()*left.length|0],max=ids.length>=5?CONFIG.maxTrolls:1,t=Math.floor(Math.random()*(max+1)),roles={},hands={},spare={};
+  const pool=ty=>shuffle(CARDS.filter(c=>c.type===ty).map(c=>c.id)),F=pool('redflag'),Rl=pool('reliable'),N=pool('neutral');
   shuffle(ids).forEach((i,j)=>roles[i]=j<t?'Troll':'Citizen');
-  ref.update({phase:'role',round:n,headline:HEADLINES[k],used:[...used,k],roles,votes:null,verdict:null,endsAt:null});
+  ids.forEach(i=>{const tr=roles[i]==='Troll';hands[i]=shuffle([...F.splice(0,tr?3:1),...Rl.splice(0,tr?1:3),...N.splice(0,1)])});
+  const rest=shuffle([...F,...Rl,...N]);ids.forEach(i=>spare[i]=rest.pop());
+  ref.update({phase:'role',round:n,headline:HEADLINES[k],used:[...used,k],roles,hands,spare,plays:null,post:null,votes:null,verdict:null,endsAt:null});
 }
 function role(){
-  if(R.round!==seenRound){seenRound=R.round;roleShown=false}
-  const my=R.roles[pid];
+  if(R.round!==seenRound){seenRound=R.round;roleShown=false;sel=null}
+  const my=R.roles[pid],hand=R.hands[pid],played=(R.plays||{})[pid],ids=Object.keys(R.players),np=Object.keys(R.plays||{}).length,sp=(R.spare||{})[pid];
+  const goal=my==='Troll'?'Make the post FAKE without being caught: play a card with a red flag, then convince the table to SHARE.':'Build a reliable post. Read each card, play the one you trust, and find the Troll (there may be none).';
   show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><h2>Breaking news</h2><div class="box headline">${esc(R.headline)}</div>
-  <div class="box">${roleShown?`<div class="headline ${my==='Troll'?'FAKE':'FACT'}">${my}</div><p>${my==='Troll'?'Slip a red flag into the post without being caught.':'Build a reliable post and find the Troll, if there is one.'}</p>`:'<p>Make sure nobody can see your screen.</p>'}
-  <button id="rv" class="ghost">${roleShown?'Hide my role':'Show my role'}</button></div>
-  <ol><li>Refresh: swap one card if you want.</li><li>Play one card face down.</li><li>Shuffle, then flip the cards.</li></ol>
-  ${isHost()?'<button id="go">Start the debate</button>':'<p class="muted">Waiting for the host.</p>'}`);
+  <button id="rv" class="ghost">${roleShown?'Hide my role and cards':'Show my role and cards'}</button>
+  ${roleShown?`<div class="box"><div class="headline ${my==='Troll'?'FAKE':'FACT'}">${my}</div><p>${goal}</p></div><h2>Your cards</h2>
+  ${hand.map(id=>`<button class="card ${id===(played||sel)?'on':''}" data-id="${id}" ${played?'disabled':''}>${cardBox(cardOf(id))}</button>`).join('')}
+  ${played?'<p>Card played. Waiting for the others.</p>':`<div><button id="pl" ${sel?'':'disabled'}>Play selected card</button>${sp?`<button id="sw" class="ghost" ${sel?'':'disabled'}>Swap selected card (once)</button>`:''}</div>`}`:'<p>Make sure nobody can see your screen.</p>'}
+  <p class="muted">Cards played: ${np}/${ids.length}</p>${isHost()?`<button id="go" ${np<ids.length?'disabled':''}>Reveal the post</button>`:''}`);
   $('rv').onclick=()=>{roleShown=!roleShown;role()};
-  if(isHost())$('go').onclick=()=>ref.update({phase:'debate',endsAt:now()+CONFIG.debateSeconds*1000});
+  app.querySelectorAll('.card').forEach(b=>b.onclick=()=>{sel=b.dataset.id;role()});
+  if($('pl'))$('pl').onclick=()=>ref.child('plays/'+pid).set(sel);
+  if($('sw'))$('sw').onclick=()=>{const u={};u['hands/'+pid]=hand.map(c=>c===sel?sp:c);u['spare/'+pid]=null;sel=null;ref.update(u)};
+  if(isHost())$('go').onclick=()=>ref.update({phase:'debate',post:shuffle(Object.values(R.plays)),endsAt:now()+CONFIG.debateSeconds*1000});
 }
 function debate(){
-  show(`<h2>Debate (English only)</h2><div class="timer" id="t">--</div><div class="box">${esc(R.headline)}</div>
+  show(`<h2>Debate (English only)</h2><div class="timer" id="t">--</div><div class="box headline">${esc(R.headline)}</div>${postBox(false)}
   <p>Is the post reliable? Who is the Troll? Every French word costs 1 point.</p>${isHost()?'<button id="go" class="ghost">Go to vote now</button>':''}`);
   if(isHost())$('go').onclick=toVote;updTimer();
 }
@@ -94,28 +103,27 @@ function updTimer(){
 }
 function vote(){
   const ids=Object.keys(R.players),v=R.votes||{},mine=v[pid];
-  show(`<h2>Vote</h2><div class="box">${esc(R.headline)}</div><p>Is this post reliable enough to share?</p>
+  show(`<h2>Vote</h2><div class="box headline">${esc(R.headline)}</div>${postBox(false)}<p>Is this post reliable enough to share?</p>
   <button id="s" class="${mine==='SHARE'?'':'ghost'}">SHARE</button><button id="r" class="${mine==='REPORT'?'':'ghost'}">REPORT</button>
   <h2>Votes in</h2><p>${ids.map(i=>`${pn(i)} ${v[i]?'✓':'…'}`).join(', ')}</p>
-  ${isHost()?`<label for="codes">Codes of the cards on the table</label><input id="codes" placeholder="S01, E02, T01, V01, D01" autocapitalize="characters" autocomplete="off"><p id="err" class="FAKE"></p><button id="go">Reveal verdict</button>`:'<p class="muted">Waiting for the verdict.</p>'}`);
+  ${isHost()?'<button id="go" class="ghost">Reveal verdict now</button>':'<p class="muted">The verdict appears when everyone has voted.</p>'}`);
   $('s').onclick=()=>ref.child('votes/'+pid).set('SHARE');
   $('r').onclick=()=>ref.child('votes/'+pid).set('REPORT');
   if(isHost())$('go').onclick=reveal;
 }
 function reveal(){
-  const codes=($('codes').value||'').toUpperCase().split(/[\s,;]+/).filter(Boolean),cards=codes.map(c=>CARDS.find(x=>x.id===c));
-  if(!codes.length||cards.includes(undefined))return err('Unknown or missing code. Check the cards.');
-  const flags=cards.filter(c=>c.type==='redflag').map(c=>c.id),fake=flags.length>0,votes=R.votes||{},ids=Object.keys(R.players);
+  if(done===R.round)return;done=R.round;
+  const flags=R.post.filter(id=>cardOf(id).type==='redflag'),fake=flags.length>0,votes=R.votes||{},ids=Object.keys(R.players);
   const shared=ids.filter(i=>votes[i]==='SHARE').length>ids.length/2,good=fake?'REPORT':'SHARE',upd={};
   ids.forEach(i=>{let s=R.players[i].score;if(votes[i]===good)s+=CONFIG.pointsCorrectVote;if(fake&&shared&&R.roles[i]==='Troll')s+=CONFIG.pointsTrollWin;upd[`players/${i}/score`]=s});
-  upd.phase='verdict';upd.verdict={fake,shared,flags,codes};
+  upd.phase='verdict';upd.verdict={fake,shared};
   if(fake&&shared)upd.missed=[...(R.missed||[]),...flags];
   ref.update(upd);
 }
 function verdict(){
-  const V=R.verdict,fl=(V.flags||[]).map(id=>CARDS.find(c=>c.id===id)).filter(Boolean),ids=Object.keys(R.players),tr=ids.filter(i=>R.roles[i]==='Troll');
+  const V=R.verdict,ids=Object.keys(R.players),tr=ids.filter(i=>R.roles[i]==='Troll');
   show(`<div class="verdict ${V.fake?'FAKE':'FACT'}">${V.fake?'FAKE':'FACT'}</div><p>${V.shared?'The table shared the post.':'The table reported the post.'}</p>
-  ${fl.length?`<h2>Red flags</h2><ul>${fl.map(c=>`<li><strong>${esc(c.text)}</strong><br>${esc(c.why)}</li>`).join('')}</ul>`:'<p>No red flag: the post is reliable.</p>'}
+  <h2>The post</h2>${postBox(true)}
   <h2>Trolls</h2><p>${tr.length?tr.map(i=>pn(i)).join(', '):'There was no Troll this round.'}</p><h2>Scores</h2>${scores()}
   ${isHost()?`<p class="muted">Lost in translation: tap a name for each French word.</p>${ids.map(i=>`<button class="ghost" data-i="${i}">${pn(i)} −${CONFIG.frenchPenalty}</button>`).join('')}<div><button id="nx">${R.round>=CONFIG.rounds?'See final scores':'Next round'}</button></div>`:'<p class="muted">Waiting for the host.</p>'}`);
   if(isHost()){
@@ -124,7 +132,7 @@ function verdict(){
   }
 }
 function final(){
-  const miss=[...new Set(R.missed||[])].map(id=>CARDS.find(c=>c.id===id)).filter(Boolean);
+  const miss=[...new Set(R.missed||[])].map(cardOf).filter(Boolean);
   show(`<h1>Final scores</h1>${scores()}
   ${miss.length?`<h2>Red flags the table missed</h2><ul>${miss.map(c=>`<li><strong>${esc(c.text)}</strong><br>${esc(c.why)}</li>`).join('')}</ul>`:'<p>No red flag slipped through. Well done.</p>'}
   ${isHost()?'<button id="cl">Close the room</button>':'<button id="lv">Leave</button>'}`);

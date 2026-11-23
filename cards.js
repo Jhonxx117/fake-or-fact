@@ -1,22 +1,90 @@
-// ===== CONTENU À REMPLIR (60 cartes + 20 titres) =====
-// type : "reliable" | "neutral" | "redflag"
-// category : Source | Evidence | Tone | Visual | Date
-// id = code imprimé en petit sur la carte (ex. S01). Doit être unique.
-const CARDS = [
-  {id:"S01",category:"Source",text:"Published by a national news agency, author named.",type:"reliable",why:"A named author and an established outlet can be checked."},
-  {id:"S02",category:"Source",text:"Shared by 'a friend of a friend who works there'.",type:"redflag",why:"Anonymous second-hand source: nobody can verify it."},
-  {id:"E01",category:"Evidence",text:"Includes a link to the original study.",type:"reliable",why:"You can read the study yourself."},
-  {id:"E02",category:"Evidence",text:"'Scientists say' (no names given).",type:"redflag",why:"Vague authority: which scientists?"},
-  {id:"T01",category:"Tone",text:"Calm, factual wording.",type:"reliable",why:"No attempt to trigger an emotional reaction."},
-  {id:"T02",category:"Tone",text:"SHOCKING!!! You won't BELIEVE this!!!",type:"redflag",why:"Emotional bait designed to be shared, not checked."},
-  {id:"V01",category:"Visual",text:"Photo with caption, date and photographer credit.",type:"reliable",why:"The image can be traced."},
-  {id:"V02",category:"Visual",text:"Blurry photo, no caption, found on a forum.",type:"redflag",why:"Origin unknown: it may be old or edited."},
-  {id:"D01",category:"Date",text:"Published today, updated this morning.",type:"reliable",why:"Recent and maintained."},
-  {id:"D02",category:"Date",text:"No date. 'Happened last week'.",type:"redflag",why:"Without a date, the news may be years old."},
-  {id:"N01",category:"Tone",text:"Short post, one emoji.",type:"neutral",why:"Neutral: says nothing about reliability."}
-];
-const HEADLINES = [
-  "City bans cars from the centre every Sunday",
-  "New study links sleep to exam results",
-  "Famous streamer announces he is quitting the internet"
-];
+// Types : r = reliable, n = neutral, f = red flag. Les codes (S01, E03...) sont générés : à imprimer sur les cartes physiques.
+const RAW={
+Source:[
+['r','Published by a national newspaper. The journalist\'s name is at the top.'],
+['r','Statement published on the official website of the city council.'],
+['r','Report by a university research team, with the authors\' emails listed.'],
+['r','Interview recorded by a public TV channel, full video available.'],
+['r','Press release signed by the company\'s spokesperson, with a phone number.'],
+['n','Posted from a personal account with a profile photo.'],
+['n','Shared in a family group chat.'],
+['n','Posted by a local sports club\'s page.'],
+['f','Posted by a page created three days ago, with no history.','A brand-new anonymous account has no track record you can check.'],
+['f','"My cousin works there and told me everything."','Second-hand information: nobody can verify it.'],
+['f','From a website with no "About" page and no author names.','You cannot know who is behind it.'],
+['f','Forwarded message: "Send this to 10 people!" No original source.','Chain messages hide their origin and push you to share fast.']],
+Evidence:[
+['r','Links to the original study and shows the sample size.'],
+['r','Quotes a named expert and gives her university.'],
+['r','Includes official statistics from the national statistics office.'],
+['r','Two independent newspapers report the same facts.'],
+['r','Contains a direct link to the official document.'],
+['n','Adds a short summary of the main points.'],
+['n','Says more details will follow.'],
+['n','Includes a list of related hashtags.'],
+['f','"Scientists say..." but no names are given.','Vague authority: which scientists? Where?'],
+['f','A screenshot of a chart with no title, no units and no source.','A chart without context can show anything.'],
+['f','"Everyone knows this is true."','Popularity is not proof.'],
+['f','"Studies prove it!" with no link to any study.','A claim without a checkable source.']],
+Tone:[
+['r','Calm and factual: who, what, when, where.'],
+['r','Uses cautious words such as "according to" and "it seems".'],
+['r','Presents two points of view and lets readers decide.'],
+['r','Corrects a mistake from yesterday\'s version and says so.'],
+['r','Neutral wording, with no insults and no exaggeration.'],
+['n','Short post, written in simple English.'],
+['n','Contains one emoji.'],
+['n','Ends with a question: "What do you think?"'],
+['f','SHOCKING!!! You won\'t BELIEVE what happened next!!!','Emotional bait: it is designed to be shared, not checked.'],
+['f','"Wake up! They are hiding the truth from you!"','Fear and conspiracy language replaces facts.'],
+['f','Calls everyone who disagrees stupid.','Insults shut down checking and debate.'],
+['f','"Share before it gets deleted!"','False urgency stops you from thinking.']],
+Visual:[
+['r','Photo with a caption, the photographer\'s name and the location.'],
+['r','Original video from a news agency, with the date shown.'],
+['r','Clear chart with a title, units and the source below.'],
+['r','Image checked with a reverse image search: first published today.'],
+['r','Map from an official website, with the date of the data.'],
+['n','A logo of the social network.'],
+['n','A plain coloured background with the title.'],
+['n','A stock photo of a smartphone.'],
+['f','Blurry photo with no caption, found on a forum.','Unknown origin: it may be old, edited or from another event.'],
+['f','Image with a cropped corner where a logo was removed.','Cropping can hide the real source.'],
+['f','Realistic photo with strange shadows and odd hands.','Possibly AI-generated.'],
+['f','Old photo from another event, used as if it were new.','A real image used in the wrong context is still misleading.']],
+Date:[
+['r','Published today at 9:12, updated at 11:40.'],
+['r','Dated this morning, and the event is still going on.'],
+['r','Published two days ago, with a note that the facts were checked that day.'],
+['r','Published yesterday, with the exact time of the event.'],
+['r','Dated today, with a note listing what is still unconfirmed.'],
+['n','Posted late at night.'],
+['n','Posted on a Monday.'],
+['n','Date shown in a different time zone.'],
+['f','No date at all: "It happened last week."','Without a date, the news may be years old.'],
+['f','An article from 2016, reposted as if it happened today.','Old news recycled as breaking news.'],
+['f','The date on the screenshot is cropped out.','Someone hid the date on purpose, or did not care.'],
+['f','The title says Tuesday, the text says Friday.','Contradictions are a sign of careless or false information.']]
+};
+const CARDS=Object.entries(RAW).flatMap(([cat,a])=>a.map((x,i)=>({id:cat[0]+String(i+1).padStart(2,'0'),category:cat,type:{r:'reliable',n:'neutral',f:'redflag'}[x[0]],text:x[1],why:x[2]||''})));
+const HEADLINES=[
+"Study claims drinking coffee adds ten years to your life",
+"Viral video shows a shark swimming in a flooded city street",
+"Popular app accused of secretly recording users' calls",
+"City announces free Wi-Fi in every public library",
+"Famous footballer says he will retire at the end of the month",
+"New phone battery charges fully in two minutes",
+"Video game banned in three countries after complaints",
+"Scientists announce a vaccine against the common cold",
+"School cancels exams because of a hacker attack",
+"Mysterious light seen over the capital last night",
+"Online shop offers 90% off all smartphones today",
+"Teenager earns one million euros selling digital art",
+"Celebrity chef says sugar-free chocolate cures headaches",
+"Researchers warn that Wi-Fi signals harm sleep",
+"Streaming service will raise its price by 50% next month",
+"Local river turns bright green overnight",
+"Airline loses thousands of bags after a software failure",
+"AI chatbot passes the national driving test",
+"Tourists told to avoid a famous beach after a jellyfish invasion",
+"Mayor says electric scooters will be banned from the city"];
