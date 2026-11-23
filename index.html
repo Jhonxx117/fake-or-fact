@@ -4,14 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fake or Fact</title>
-<link rel="stylesheet" href="style.css?v=5">
+<script>
+// Anti-cache : les fichiers sont rechargés à chaque ouverture. Plus besoin de changer de numéro dans ce fichier.
+var t=Date.now();
+var css=document.createElement('link');css.rel='stylesheet';css.href='style.css?t='+t;document.head.appendChild(css);
+</script>
 </head>
 <body>
 <main id="app"></main>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-<script src="cards.js?v=5"></script>
-<script src="app.js?v=5"></script>
+<script>
+function load(src,next){var s=document.createElement('script');s.src=src+'?t='+t;s.onload=next;document.body.appendChild(s)}
+load('cards.js',function(){load('app.js')});
+</script>
 </body>
 </html>
