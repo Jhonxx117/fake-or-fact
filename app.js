@@ -44,7 +44,7 @@ async function join(code,name){
 }
 function enter(code){
   room=code;done=0;lastPhase=null;store.set('fof',JSON.stringify({code,pid}));ref=db.ref('rooms/'+code);
-  ref.on('value',s=>{R=s.val();if(!R){leave();return}render()});
+  ref.on('value',s=>{R=s.val();if(!R){leave();err('The room was closed.');return}render()});
   setInterval(updTimer,500);setInterval(beat,120000);cleanup();
 }
 function leave(){store.del('fof');if(ref)ref.off();ref=R=null;history.replaceState(null,'',location.pathname);home()}
@@ -59,6 +59,8 @@ function render(){
     $('cl').onclick=()=>confirm('Close the room for everyone?')&&closeRoom();
   }else $('lv').onclick=()=>{if(!confirm('Leave the game?'))return;const me=ref.child('players/'+pid);leave();me.remove()};
   const ids=act();
+  // Moins de 3 joueurs pendant une partie : le salon se ferme tout seul
+  if(isHost()&&R.phase!=='lobby'&&R.phase!=='end'&&Object.keys(R.players).length<CONFIG.minPlayers){closeRoom();return}
   if(isHost()&&R.phase!==lastPhase){lastPhase=R.phase;beat()}
   if(isHost()&&R.phase==='vote'&&ids.every(i=>(R.votes||{})[i]))reveal();
 }
@@ -121,8 +123,8 @@ function role(){
   ${hand.map(id=>`<button class="card ${id===(played||sel)?'on':''}" data-id="${id}" ${played?'disabled':''}>${cardBox(cardOf(id))}</button>`).join('')}
   ${played?'<p>Card played. Waiting for the others.</p>':`<div><button id="pl" ${sel?'':'disabled'}>Play selected card</button>${sp?`<button id="sw" class="ghost" ${sel?'':'disabled'}>Swap selected card (once)</button>`:''}</div>`}`:'<p>Make sure nobody can see your screen.</p>'}
   <p class="muted">Cards played: ${np}/${ids.length}</p>${isHost()?`<button id="go" ${np<ids.length?'disabled':''}>Reveal the post</button>`:''}`);
-  $('rv').onclick=()=>{roleShown=!roleShown;role()};
-  app.querySelectorAll('.card').forEach(b=>b.onclick=()=>{sel=b.dataset.id;role()});
+  $('rv').onclick=()=>{roleShown=!roleShown;render()};
+  app.querySelectorAll('.card').forEach(b=>b.onclick=()=>{sel=b.dataset.id;render()});
   if($('pl'))$('pl').onclick=()=>ref.child('plays/'+pid).set(sel);
   if($('sw'))$('sw').onclick=()=>{const u={};u['hands/'+pid]=hand.map(c=>c===sel?sp:c);u['spare/'+pid]=null;sel=null;ref.update(u)};
   if(isHost())$('go').onclick=()=>ref.update({phase:'debate',post:shuffle(Object.values(R.plays)),endsAt:now()+CONFIG.debateSeconds*1000});
