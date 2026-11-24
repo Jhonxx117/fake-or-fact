@@ -13,7 +13,7 @@ const show=h=>{app.innerHTML=h},err=m=>{const e=$('err');if(e)e.textContent=m};
 const notice=m=>{const d=document.createElement('div');d.className='box toast';d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.classList.add('out'),4500);setTimeout(()=>d.remove(),5000)};
 // ----- Animations -----
 // Les éléments de l'écran apparaissent un par un, SEULEMENT quand on change d'écran (pas à chaque mise à jour de Firebase)
-let animKey=null,flipRole=false,popCard=null,seenPlayers=null,wasReady=null;
+let secretShown=false,secretKey=null,secretFlip=false,animKey=null,flipRole=false,popCard=null,seenPlayers=null,wasReady=null;
 const animate=key=>{if(key===animKey)return;animKey=key;[...app.children].forEach((el,i)=>{el.style.animationDelay=Math.min(i*60,480)+'ms';el.classList.add('in')})};
 let prevR=null,lastLeft='',room,pid,ref,R,offset=0,roleShown=false,seenRound=0,sel=null,done=0,lastPhase=null;
 db.ref('.info/serverTimeOffset').on('value',s=>{offset=s.val()||0});
@@ -139,6 +139,8 @@ function startRound(){
   const rest=shuffle([...F,...Rl,...N]);ids.forEach(i=>spare[i]=rest.pop());
   ref.update({phase:'role',round:n,headline:HEADLINES[k],used:[...used,k],roles,hands,spare,plays:null,post:null,votes:null,suspects:null,french:null,verdict:null,endsAt:null});
 }
+// Seul le Troll voit sur SON téléphone quelles cartes de sa main sont des red flags
+const trollTag=c=>c.type==='redflag'?'<br><span class="tag flag">🚩 Red flag</span>':'<br><span class="tag safe">Not a red flag</span>';
 function role(){
   if(R.round!==seenRound){seenRound=R.round;roleShown=false;sel=null}
   if(!R.roles||!R.roles[pid]){show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><div class="box headline">${esc(R.headline)}</div><p>A round is already in progress. You will play from the next round.</p>`);return}
@@ -147,7 +149,7 @@ function role(){
   show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><h2>Breaking news</h2><div class="box headline">${esc(R.headline)}</div>
   <button id="rv" class="ghost">${roleShown?'Hide my role and cards':'Show my role and cards'}</button>
   ${roleShown?`<div class="box${flipRole?' flip':''}"><div class="headline ${my==='Troll'?'FAKE':'FACT'}">${my}</div><p>${goal}</p></div><h2>Your cards</h2>
-  ${hand.map(id=>`<button class="card ${id===(played||sel)?'on':''} ${id===popCard?'pop':''}" data-id="${id}" ${played?'disabled':''}>${cardBox(cardOf(id))}</button>`).join('')}
+  ${hand.map(id=>`<button class="card ${id===(played||sel)?'on':''} ${id===popCard?'pop':''}" data-id="${id}" ${played?'disabled':''}>${cardBox(cardOf(id))}${my==='Troll'?trollTag(cardOf(id)):''}</button>`).join('')}
   ${played?'<p>Card played. Waiting for the others.</p>':`<div><button id="pl" ${sel?'':'disabled'}>Play selected card</button>${sp?`<button id="sw" class="ghost" ${sel?'':'disabled'}>Swap selected card (once)</button>`:''}</div>`}`:'<p>Make sure nobody can see your screen.</p>'}
   <p class="muted">Cards played: ${np}/${ids.length}</p>${isHost()?`<button id="go" ${np<ids.length?'disabled':''}>Reveal the post</button>`:''}`);
   flipRole=false;popCard=null;
@@ -159,9 +161,22 @@ function role(){
 }
 function debate(){
   show(`<h2>Debate (English only)</h2><div class="timer" id="t">--</div><div class="box headline">${esc(R.headline)}</div>${postBox(false)}
-  <p>Is the post reliable? Who is the Troll? Every French word costs 1 point.</p>${isHost()?'<button id="go" class="ghost">Go to vote now</button>':''}`);
-  if(isHost())$('go').onclick=toVote;updTimer();
+  <p>Is the post reliable? Who is the Troll? Every French word costs 1 point.</p>${secretHtml()}${isHost()?'<div><button id="go" class="ghost">Go to vote now</button></div>':''}`);
+  bindSecret();if(isHost())$('go').onclick=toVote;updTimer();
 }
+// ----- Info secrète (débat + vote) -----
+// Le Troll peut voir si le post est FAKE ou FACT, pour pousser la table vers la mauvaise réponse.
+// Tout le monde a le même bouton (un Citizen voit « pas d'info secrète ») : appuyer dessus ne trahit donc pas le Troll.
+function secretHtml(){
+  const k=R.phase+R.round;if(k!==secretKey){secretKey=k;secretShown=false}
+  if(!R.roles||!R.roles[pid])return '';
+  const troll=R.roles[pid]==='Troll',fake=R.post.some(id=>cardOf(id).type==='redflag');
+  const info=troll?`<p><strong>Troll secret:</strong> this post is <span class="${fake?'FAKE':'FACT'}">${fake?'FAKE':'FACT'}</span>.</p><p>${fake?'There is a red flag in it. Convince the Citizens to SHARE it.':'There is no red flag in it. Convince the Citizens to REPORT it.'}</p>`
+    :'<p>You are a Citizen: no secret info for you. Read the cards and trust your eyes!</p>';
+  const h=`<button id="sc" class="ghost">${secretShown?'Hide my secret info':'Show my secret info'}</button>${secretShown?`<div class="box${secretFlip?' flip':''}">${info}</div>`:''}`;
+  secretFlip=false;return h;
+}
+const bindSecret=()=>{if($('sc'))$('sc').onclick=()=>{secretShown=!secretShown;secretFlip=secretShown;render()}};
 const toVote=()=>{if(R&&R.phase==='debate')ref.update({phase:'vote'})};
 function updTimer(){
   const t=$('t');if(!t||!R||R.phase!=='debate')return;
@@ -169,14 +184,14 @@ function updTimer(){
 }
 function vote(){
   const ids=act(),v=R.votes||{},mine=v[pid],sus=(R.suspects||{})[pid];
-  show(`<h2>Vote</h2><div class="box headline">${esc(R.headline)}</div>${postBox(false)}${R.roles[pid]?`<p>1. Is this post reliable enough to share?</p>
+  show(`<h2>Vote</h2><div class="box headline">${esc(R.headline)}</div>${postBox(false)}${secretHtml()}${R.roles[pid]?`<p>1. Is this post reliable enough to share?</p>
   <button id="s" class="${mine==='SHARE'?'':'ghost'}">SHARE</button><button id="r" class="${mine==='REPORT'?'':'ghost'}">REPORT</button>
   <p>2. Who is the Troll?</p><div>${ids.filter(i=>i!==pid).map(i=>`<button class="${sus===i?'':'ghost'}" data-sus="${i}">${pn(i)}</button>`).join('')}</div>
   ${mine&&sus?'<p class="muted">Vote saved. You can still change it.</p>':'<p class="muted">Choose both to validate your vote.</p>'}`:'<p>You will play from the next round.</p>'}
   <h2>Votes in</h2><p>${ids.map(i=>`${pn(i)} ${voted(i)?'✓':'…'}`).join(', ')}</p>
   ${isHost()?'<button id="go" class="ghost">Reveal verdict now</button>':'<p class="muted">The verdict appears when everyone has voted.</p>'}`);
   if($('s')){$('s').onclick=()=>ref.child('votes/'+pid).set('SHARE');$('r').onclick=()=>ref.child('votes/'+pid).set('REPORT')}
-  app.querySelectorAll('[data-sus]').forEach(b=>b.onclick=()=>ref.child('suspects/'+pid).set(b.dataset.sus));
+  bindSecret();app.querySelectorAll('[data-sus]').forEach(b=>b.onclick=()=>ref.child('suspects/'+pid).set(b.dataset.sus));
   if(isHost())$('go').onclick=reveal;
 }
 function reveal(){
