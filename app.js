@@ -26,6 +26,7 @@ function home(){
   <p id="err" class="FAKE"></p><button id="jn">Join</button>${q?'':'<button id="mk" class="ghost">Create a game</button>'}`);
   $('jn').onclick=()=>join($('cd').value.trim().toUpperCase(),$('nm').value.trim());
   if($('mk'))$('mk').onclick=create;
+  $('cd').oninput=e=>{e.target.value=e.target.value.toUpperCase()}; // code de salle toujours en majuscules
 }
 async function create(){
   const name=$('nm').value.trim();if(!name)return err('Enter a nickname.');
