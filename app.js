@@ -51,10 +51,9 @@ function enter(code){
     // Joueurs présents avant et absents maintenant = joueurs qui ont quitté
     const gone=old&&R?Object.keys(old.players||{}).filter(i=>i!==pid&&!(R.players||{})[i]).map(i=>old.players[i].name):[];
     if(gone.length)lastLeft=gone.join(', ');
-    if(!R){
-      const few=old&&old.phase!=='lobby'&&old.phase!=='end'&&Object.keys(old.players||{}).length<CONFIG.minPlayers;
-      const who=lastLeft||'A player';leave();
-      err(few?`${who} left the game. Not enough players to continue.`:'The room was closed.');return}
+    if(!R){leave();err('The room was closed.');return}
+    // Le Host a fermé le salon : tout le monde voit la raison écrite dans la salle
+    if(R.phase==='closed'){const m=R.closedMsg||'The room was closed.';leave();err(m);return}
     render();gone.forEach(n=>notice(`${n} left the game.`));
   });
   setInterval(updTimer,500);setInterval(beat,120000);cleanup();
@@ -72,7 +71,7 @@ function render(){
   }else $('lv').onclick=()=>{if(!confirm('Leave the game?'))return;const me=ref.child('players/'+pid);leave();me.remove()};
   const ids=act();
   // Moins de 3 joueurs pendant une partie : le salon se ferme tout seul
-  if(isHost()&&R.phase!=='lobby'&&R.phase!=='end'&&Object.keys(R.players).length<CONFIG.minPlayers){closeRoom();return}
+  if(isHost()&&R.phase!=='lobby'&&R.phase!=='end'&&Object.keys(R.players).length<CONFIG.minPlayers){closeRoom(`${lastLeft||'A player'} left the game. Not enough players to continue.`);return}
   if(isHost()&&R.phase!==lastPhase){lastPhase=R.phase;beat()}
   if(isHost()&&R.phase==='vote'&&ids.every(i=>(R.votes||{})[i]))reveal();
 }
@@ -86,7 +85,12 @@ function beat(){
   if(!ref||!R||!isHost())return;
   db.ref('index/'+room).set({t:firebase.database.ServerValue.TIMESTAMP,endAt:R.endAt||null});
 }
-function closeRoom(){const ix=db.ref('index/'+room);ref.remove();ix.remove()}
+// On écrit d'abord la raison dans la salle (tous les joueurs la voient), puis on supprime la salle 5 s plus tard
+function closeRoom(msg){
+  const r=ref,ix=db.ref('index/'+room);
+  r.update({phase:'closed',closedMsg:msg||'The host closed the room.'});
+  setTimeout(()=>{r.remove();ix.remove()},5000);
+}
 async function cleanup(){
   try{
     const s=await db.ref('index').get();if(!s.exists())return;
