@@ -13,7 +13,7 @@ const show=h=>{app.innerHTML=h},err=m=>{const e=$('err');if(e)e.textContent=m};
 const notice=m=>{const d=document.createElement('div');d.className='box toast';d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.classList.add('out'),4500);setTimeout(()=>d.remove(),5000)};
 // ----- Animations -----
 // Les éléments de l'écran apparaissent un par un, SEULEMENT quand on change d'écran (pas à chaque mise à jour de Firebase)
-let animKey=null,flipRole=false,popCard=null;
+let animKey=null,flipRole=false,popCard=null,seenPlayers=null,wasReady=null;
 const animate=key=>{if(key===animKey)return;animKey=key;[...app.children].forEach((el,i)=>{el.style.animationDelay=Math.min(i*60,480)+'ms';el.classList.add('in')})};
 let prevR=null,lastLeft='',room,pid,ref,R,offset=0,roleShown=false,seenRound=0,sel=null,done=0,lastPhase=null;
 db.ref('.info/serverTimeOffset').on('value',s=>{offset=s.val()||0});
@@ -64,7 +64,7 @@ function enter(code){
   });
   setInterval(updTimer,500);setInterval(beat,120000);cleanup();
 }
-function leave(){animKey=null;store.del('fof');if(ref)ref.off();ref=R=null;history.replaceState(null,'',location.pathname);home()}
+function leave(){animKey=null;seenPlayers=wasReady=null;store.del('fof');if(ref)ref.off();ref=R=null;history.replaceState(null,'',location.pathname);home()}
 
 // ----- Affichage selon la phase -----
 function render(){
@@ -115,10 +115,13 @@ function restart(){
 function lobby(){
   const url=location.origin+location.pathname+'?room='+room,ids=Object.keys(R.players),qr=qrcode(0,'M');
   qr.addData(url);qr.make();
+  // ready = assez de joueurs ; boom = on vient juste d'atteindre le minimum (effet une seule fois)
+  const need=Math.max(0,CONFIG.minPlayers-ids.length),ready=!need,boom=ready&&wasReady===false;
   show(`<h1>Room ${room}</h1><p class="sub">Scan to join, or enter the code on the home page.</p>
   <div class="qr">${qr.createSvgTag(5,0)}</div><p class="muted">${esc(url)}</p>
-  <h2>Players (${ids.length}/${CONFIG.maxPlayers})</h2><ul>${ids.map(i=>`<li>${pn(i)}${i===R.host?' (host)':''}</li>`).join('')}</ul>
-  ${isHost()?`<button id="st" ${ids.length<CONFIG.minPlayers?'disabled':''}>Start game</button>${ids.length<CONFIG.minPlayers?'<p class="muted">At least 3 players needed.</p>':''}`:'<p class="muted">Waiting for the host to start.</p>'}`);
+  <h2>Players (${ids.length}/${CONFIG.maxPlayers})</h2><ul class="players">${ids.map(i=>`<li class="${seenPlayers&&!seenPlayers.includes(i)?'join':''}">${pn(i)}${i===R.host?' (host)':''}</li>`).join('')}</ul>
+  ${isHost()?`<button id="st" class="${ready?'':'locked'} ${boom?'boom':''}" ${ready?'':'disabled'}>Start game</button><p class="muted">${ready?'Everyone is here? Let\'s go!':`At least ${CONFIG.minPlayers} players needed (${need} more).`}</p>`:'<p class="muted">Waiting for the host to start.</p>'}`);
+  seenPlayers=ids;wasReady=ready;
   if(isHost())$('st').onclick=startRound;
 }
 const cardOf=id=>CARDS.find(c=>c.id===id);
