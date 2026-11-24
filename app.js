@@ -141,14 +141,20 @@ function startRound(){
 }
 // Seul le Troll voit sur SON téléphone quelles cartes de sa main sont des red flags
 const trollTag=c=>c.type==='redflag'?'<br><span class="tag flag">🚩 Red flag</span>':'<br><span class="tag safe">Not a red flag</span>';
+// Troll : état du post EN DIRECT pendant le choix des cartes (d'après les cartes déjà jouées)
+function trollLive(){
+  const pl=Object.values(R.plays||{}),n=act().length,fake=pl.some(id=>cardOf(id).type==='redflag');
+  if(!pl.length)return `<div class="box"><p><strong>Troll secret:</strong> nobody has played yet. If nobody plays a red flag, the post will be a <span class="FACT">FACT</span>.</p></div>`;
+  return `<div class="box"><p><strong>Troll secret:</strong> with the ${pl.length}/${n} cards played so far, the post is <span class="${fake?'FAKE':'FACT'}">${fake?'FAKE':'FACT'}</span>.</p><p class="muted">${fake?'There is already a red flag in it: you can play a good card to hide.':'No red flag yet: play one of your 🚩 cards to make it FAKE, or keep it a FACT and make the Citizens REPORT it.'}</p></div>`;
+}
 function role(){
   if(R.round!==seenRound){seenRound=R.round;roleShown=false;sel=null}
   if(!R.roles||!R.roles[pid]){show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><div class="box headline">${esc(R.headline)}</div><p>A round is already in progress. You will play from the next round.</p>`);return}
   const my=R.roles[pid],hand=(R.hands||{})[pid]||[],played=(R.plays||{})[pid],ids=act(),np=ids.filter(i=>(R.plays||{})[i]).length,sp=(R.spare||{})[pid];
-  const goal=my==='Troll'?'Make the Citizens get it wrong. Convince them to SHARE a fake post or to REPORT a reliable one. You score 1 point for each Citizen who votes wrong, and nothing for your own vote.':'Build a reliable post. Read each card, play the one you trust, and find the Troll.';
+  const goal=my==='Troll'?'Make the Citizens get it wrong. Convince them to SHARE a fake post or to REPORT a reliable one. You score 1 point for each Citizen who votes wrong, and nothing for your own vote. Your red flags are marked 🚩 below, and you can see live if the post is FAKE or FACT.':'Build a reliable post. Read each card, play the one you trust, and find the Troll.';
   show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><h2>Breaking news</h2><div class="box headline">${esc(R.headline)}</div>
   <button id="rv" class="ghost">${roleShown?'Hide my role and cards':'Show my role and cards'}</button>
-  ${roleShown?`<div class="box${flipRole?' flip':''}"><div class="headline ${my==='Troll'?'FAKE':'FACT'}">${my}</div><p>${goal}</p></div><h2>Your cards</h2>
+  ${roleShown?`<div class="box${flipRole?' flip':''}"><div class="headline ${my==='Troll'?'FAKE':'FACT'}">${my}</div><p>${goal}</p></div>${my==='Troll'?trollLive():''}<h2>Your cards</h2>
   ${hand.map(id=>`<button class="card ${id===(played||sel)?'on':''} ${id===popCard?'pop':''}" data-id="${id}" ${played?'disabled':''}>${cardBox(cardOf(id))}${my==='Troll'?trollTag(cardOf(id)):''}</button>`).join('')}
   ${played?'<p>Card played. Waiting for the others.</p>':`<div><button id="pl" ${sel?'':'disabled'}>Play selected card</button>${sp?`<button id="sw" class="ghost" ${sel?'':'disabled'}>Swap selected card (once)</button>`:''}</div>`}`:'<p>Make sure nobody can see your screen.</p>'}
   <p class="muted">Cards played: ${np}/${ids.length}</p>${isHost()?`<button id="go" ${np<ids.length?'disabled':''}>Reveal the post</button>`:''}`);
@@ -173,7 +179,7 @@ function secretHtml(){
   const troll=R.roles[pid]==='Troll',fake=R.post.some(id=>cardOf(id).type==='redflag');
   const info=troll?`<p><strong>Troll secret:</strong> this post is <span class="${fake?'FAKE':'FACT'}">${fake?'FAKE':'FACT'}</span>.</p><p>${fake?'There is a red flag in it. Convince the Citizens to SHARE it.':'There is no red flag in it. Convince the Citizens to REPORT it.'}</p>`
     :'<p>You are a Citizen: no secret info for you. Read the cards and trust your eyes!</p>';
-  const h=`<button id="sc" class="ghost">${secretShown?'Hide my secret info':'Show my secret info'}</button>${secretShown?`<div class="box${secretFlip?' flip':''}">${info}</div>`:''}`;
+  const h=`<button id="sc" class="secret">${secretShown?'Hide my secret info':'🤫 Show my secret info'}</button>${secretShown?`<div class="box${secretFlip?' flip':''}">${info}</div>`:''}`;
   secretFlip=false;return h;
 }
 const bindSecret=()=>{if($('sc'))$('sc').onclick=()=>{secretShown=!secretShown;secretFlip=secretShown;render()}};
