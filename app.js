@@ -10,7 +10,11 @@ const uid=()=>Math.random().toString(36).slice(2,10);
 const store={get:k=>{try{return sessionStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{sessionStorage.setItem(k,v)}catch(e){}},del:k=>{try{sessionStorage.removeItem(k)}catch(e){}}};
 const show=h=>{app.innerHTML=h},err=m=>{const e=$('err');if(e)e.textContent=m};
 // Petit message en haut de l'écran, qui disparaît après 5 secondes
-const notice=m=>{const d=document.createElement('div');d.className='box';d.textContent=m;d.style.cssText='position:fixed;top:1rem;left:50%;transform:translateX(-50%);margin:0;max-width:90%;background:var(--bg);z-index:9';document.body.appendChild(d);setTimeout(()=>d.remove(),5000)};
+const notice=m=>{const d=document.createElement('div');d.className='box toast';d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.classList.add('out'),4500);setTimeout(()=>d.remove(),5000)};
+// ----- Animations -----
+// Les éléments de l'écran apparaissent un par un, SEULEMENT quand on change d'écran (pas à chaque mise à jour de Firebase)
+let animKey=null,flipRole=false,popCard=null;
+const animate=key=>{if(key===animKey)return;animKey=key;[...app.children].forEach((el,i)=>{el.style.animationDelay=Math.min(i*60,480)+'ms';el.classList.add('in')})};
 let prevR=null,lastLeft='',room,pid,ref,R,offset=0,roleShown=false,seenRound=0,sel=null,done=0,lastPhase=null;
 db.ref('.info/serverTimeOffset').on('value',s=>{offset=s.val()||0});
 const now=()=>Date.now()+offset,isHost=()=>R&&R.host===pid,pn=i=>esc(R.players[i].name);
@@ -26,6 +30,7 @@ function home(){
   <p id="err" class="FAKE"></p><button id="jn">Join</button>${q?'':'<button id="mk" class="ghost">Create a game</button>'}`);
   $('jn').onclick=()=>join($('cd').value.trim().toUpperCase(),$('nm').value.trim());
   if($('mk'))$('mk').onclick=create;
+  animate('home');
   $('cd').oninput=e=>{e.target.value=e.target.value.toUpperCase()}; // code de salle toujours en majuscules
 }
 async function create(){
@@ -59,13 +64,14 @@ function enter(code){
   });
   setInterval(updTimer,500);setInterval(beat,120000);cleanup();
 }
-function leave(){store.del('fof');if(ref)ref.off();ref=R=null;history.replaceState(null,'',location.pathname);home()}
+function leave(){animKey=null;store.del('fof');if(ref)ref.off();ref=R=null;history.replaceState(null,'',location.pathname);home()}
 
 // ----- Affichage selon la phase -----
 function render(){
   if(R.phase==='lobby'){seenRound=0;sel=null}
   try{(R.ver!==VERSION?outdated:({lobby,role,debate,vote,verdict,end:final})[R.phase])()}catch(e){show(`<p class="FAKE">Display error: ${esc(e.message)}</p>`)}
   app.insertAdjacentHTML('beforeend',`<div class="foot">${isHost()?`${R.phase==='lobby'?'':'<button id="rs" class="ghost">Restart the game</button>'}<button id="cl" class="ghost">Close the room</button>`:'<button id="lv" class="ghost">Leave the game</button>'}</div>`);
+  animate(R.phase+R.round);
   if(isHost()){
     if($('rs'))$('rs').onclick=()=>confirm('Restart? Scores are reset and everyone goes back to the lobby.')&&restart();
     $('cl').onclick=()=>confirm('Close the room for everyone?')&&closeRoom();
@@ -136,12 +142,13 @@ function role(){
   const goal=my==='Troll'?'Make the Citizens get it wrong. Convince them to SHARE a fake post or to REPORT a reliable one. You score 1 point for each Citizen who votes wrong, and nothing for your own vote.':'Build a reliable post. Read each card, play the one you trust, and find the Troll.';
   show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><h2>Breaking news</h2><div class="box headline">${esc(R.headline)}</div>
   <button id="rv" class="ghost">${roleShown?'Hide my role and cards':'Show my role and cards'}</button>
-  ${roleShown?`<div class="box"><div class="headline ${my==='Troll'?'FAKE':'FACT'}">${my}</div><p>${goal}</p></div><h2>Your cards</h2>
-  ${hand.map(id=>`<button class="card ${id===(played||sel)?'on':''}" data-id="${id}" ${played?'disabled':''}>${cardBox(cardOf(id))}</button>`).join('')}
+  ${roleShown?`<div class="box${flipRole?' flip':''}"><div class="headline ${my==='Troll'?'FAKE':'FACT'}">${my}</div><p>${goal}</p></div><h2>Your cards</h2>
+  ${hand.map(id=>`<button class="card ${id===(played||sel)?'on':''} ${id===popCard?'pop':''}" data-id="${id}" ${played?'disabled':''}>${cardBox(cardOf(id))}</button>`).join('')}
   ${played?'<p>Card played. Waiting for the others.</p>':`<div><button id="pl" ${sel?'':'disabled'}>Play selected card</button>${sp?`<button id="sw" class="ghost" ${sel?'':'disabled'}>Swap selected card (once)</button>`:''}</div>`}`:'<p>Make sure nobody can see your screen.</p>'}
   <p class="muted">Cards played: ${np}/${ids.length}</p>${isHost()?`<button id="go" ${np<ids.length?'disabled':''}>Reveal the post</button>`:''}`);
-  $('rv').onclick=()=>{roleShown=!roleShown;render()};
-  app.querySelectorAll('.card').forEach(b=>b.onclick=()=>{sel=b.dataset.id;render()});
+  flipRole=false;popCard=null;
+  $('rv').onclick=()=>{roleShown=!roleShown;flipRole=roleShown;render()};
+  app.querySelectorAll('.card').forEach(b=>b.onclick=()=>{sel=b.dataset.id;popCard=sel;render()});
   if($('pl'))$('pl').onclick=()=>ref.child('plays/'+pid).set(sel);
   if($('sw'))$('sw').onclick=()=>{const u={};u['hands/'+pid]=hand.map(c=>c===sel?sp:c);u['spare/'+pid]=null;sel=null;ref.update(u)};
   if(isHost())$('go').onclick=()=>ref.update({phase:'debate',post:shuffle(Object.values(R.plays)),endsAt:now()+CONFIG.debateSeconds*1000});
@@ -154,7 +161,7 @@ function debate(){
 const toVote=()=>{if(R&&R.phase==='debate')ref.update({phase:'vote'})};
 function updTimer(){
   const t=$('t');if(!t||!R||R.phase!=='debate')return;
-  const l=Math.max(0,Math.ceil((R.endsAt-now())/1000));t.textContent=l;if(l<=0&&isHost())toVote();
+  const l=Math.max(0,Math.ceil((R.endsAt-now())/1000));t.textContent=l;t.classList.toggle('urgent',l>0&&l<=10);if(l<=0&&isHost())toVote();
 }
 function vote(){
   const ids=act(),v=R.votes||{},mine=v[pid];
