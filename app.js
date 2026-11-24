@@ -1,6 +1,6 @@
 // ===== RÉGLAGES =====
-const VERSION='4'; // à changer à chaque mise à jour du code, et dans index.html (?v=)
-const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollWin:3,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
+const VERSION='4'; // à changer seulement si la structure des données de la salle change
+const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
 const db=firebase.database(),app=document.getElementById('app'),$=id=>document.getElementById(id);
@@ -113,7 +113,7 @@ function role(){
   if(R.round!==seenRound){seenRound=R.round;roleShown=false;sel=null}
   if(!R.roles||!R.roles[pid]){show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><div class="box headline">${esc(R.headline)}</div><p>A round is already in progress. You will play from the next round.</p>`);return}
   const my=R.roles[pid],hand=(R.hands||{})[pid]||[],played=(R.plays||{})[pid],ids=act(),np=ids.filter(i=>(R.plays||{})[i]).length,sp=(R.spare||{})[pid];
-  const goal=my==='Troll'?'Make the post FAKE without being caught: play a card with a red flag, then convince the table to SHARE.':'Build a reliable post. Read each card, play the one you trust, and find the Troll (there may be none).';
+  const goal=my==='Troll'?'Make the Citizens get it wrong. Convince them to SHARE a fake post or to REPORT a reliable one. You score 1 point for each Citizen who votes wrong, and nothing for your own vote.':'Build a reliable post. Read each card, play the one you trust, and find the Troll (there may be none).';
   show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><h2>Breaking news</h2><div class="box headline">${esc(R.headline)}</div>
   <button id="rv" class="ghost">${roleShown?'Hide my role and cards':'Show my role and cards'}</button>
   ${roleShown?`<div class="box"><div class="headline ${my==='Troll'?'FAKE':'FACT'}">${my}</div><p>${goal}</p></div><h2>Your cards</h2>
@@ -149,7 +149,11 @@ function reveal(){
   if(done===R.round)return;done=R.round;
   const flags=R.post.filter(id=>cardOf(id).type==='redflag'),fake=flags.length>0,votes=R.votes||{},ids=act();
   const shared=ids.filter(i=>votes[i]==='SHARE').length>ids.length/2,good=fake?'REPORT':'SHARE',upd={};
-  ids.forEach(i=>{let s=R.players[i].score;if(votes[i]===good)s+=CONFIG.pointsCorrectVote;if(fake&&shared&&R.roles[i]==='Troll')s+=CONFIG.pointsTrollWin;upd[`players/${i}/score`]=s});
+  const fooled=ids.filter(i=>R.roles[i]!=='Troll'&&votes[i]!==good).length; // Citizens qui se sont trompés
+  ids.forEach(i=>{let s=R.players[i].score;
+    if(R.roles[i]==='Troll')s+=fooled*CONFIG.pointsTrollWin; // le Troll gagne quand les Citizens se trompent
+    else if(votes[i]===good)s+=CONFIG.pointsCorrectVote;
+    upd[`players/${i}/score`]=s});
   upd.phase='verdict';upd.verdict={fake,shared};
   if(fake&&shared)upd.missed=[...(R.missed||[]),...flags];
   ref.update(upd);
