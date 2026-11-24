@@ -1,14 +1,13 @@
-// Types : r = reliable, n = neutral, f = red flag. Les codes (S01, E03...) sont générés : à imprimer sur les cartes physiques.
+// Types : r = reliable, n = neutral, f = red flag. Règles V2 : 6 catégories × 10 cartes (4 r, 2 n, 4 f).
+// Les codes (S01, E03... R10) sont générés : première lettre de la catégorie + numéro. Ils doivent être identiques sur les cartes imprimées.
 const RAW={
 Source:[
 ['r','Published by a national newspaper. The journalist\'s name is at the top.'],
 ['r','Statement published on the official website of the city council.'],
 ['r','Report by a university research team, with the authors\' emails listed.'],
 ['r','Interview recorded by a public TV channel, full video available.'],
-['r','Press release signed by the company\'s spokesperson, with a phone number.'],
 ['n','Posted from a personal account with a profile photo.'],
 ['n','Shared in a family group chat.'],
-['n','Posted by a local sports club\'s page.'],
 ['f','Posted by a page created three days ago, with no history.','A brand-new anonymous account has no track record you can check.'],
 ['f','"My cousin works there and told me everything."','Second-hand information: nobody can verify it.'],
 ['f','From a website with no "About" page and no author names.','You cannot know who is behind it.'],
@@ -18,10 +17,8 @@ Evidence:[
 ['r','Quotes a named expert and gives her university.'],
 ['r','Includes official statistics from the national statistics office.'],
 ['r','Two independent newspapers report the same facts.'],
-['r','Contains a direct link to the official document.'],
 ['n','Adds a short summary of the main points.'],
 ['n','Says more details will follow.'],
-['n','Includes a list of related hashtags.'],
 ['f','"Scientists say..." but no names are given.','Vague authority: which scientists? Where?'],
 ['f','A screenshot of a chart with no title, no units and no source.','A chart without context can show anything.'],
 ['f','"Everyone knows this is true."','Popularity is not proof.'],
@@ -31,9 +28,7 @@ Tone:[
 ['r','Uses cautious words such as "according to" and "it seems".'],
 ['r','Presents two points of view and lets readers decide.'],
 ['r','Corrects a mistake from yesterday\'s version and says so.'],
-['r','Neutral wording, with no insults and no exaggeration.'],
 ['n','Short post, written in simple English.'],
-['n','Contains one emoji.'],
 ['n','Ends with a question: "What do you think?"'],
 ['f','SHOCKING!!! You won\'t BELIEVE what happened next!!!','Emotional bait: it is designed to be shared, not checked.'],
 ['f','"Wake up! They are hiding the truth from you!"','Fear and conspiracy language replaces facts.'],
@@ -44,9 +39,7 @@ Visual:[
 ['r','Original video from a news agency, with the date shown.'],
 ['r','Clear chart with a title, units and the source below.'],
 ['r','Image checked with a reverse image search: first published today.'],
-['r','Map from an official website, with the date of the data.'],
 ['n','A logo of the social network.'],
-['n','A plain coloured background with the title.'],
 ['n','A stock photo of a smartphone.'],
 ['f','Blurry photo with no caption, found on a forum.','Unknown origin: it may be old, edited or from another event.'],
 ['f','Image with a cropped corner where a logo was removed.','Cropping can hide the real source.'],
@@ -57,14 +50,24 @@ Date:[
 ['r','Dated this morning, and the event is still going on.'],
 ['r','Published two days ago, with a note that the facts were checked that day.'],
 ['r','Published yesterday, with the exact time of the event.'],
-['r','Dated today, with a note listing what is still unconfirmed.'],
 ['n','Posted late at night.'],
-['n','Posted on a Monday.'],
 ['n','Date shown in a different time zone.'],
 ['f','No date at all: "It happened last week."','Without a date, the news may be years old.'],
 ['f','An article from 2016, reposted as if it happened today.','Old news recycled as breaking news.'],
 ['f','The date on the screenshot is cropped out.','Someone hid the date on purpose, or did not care.'],
-['f','The title says Tuesday, the text says Friday.','Contradictions are a sign of careless or false information.']]
+['f','The title says Tuesday, the text says Friday.','Contradictions are a sign of careless or false information.']],
+// Reactions : textes de DÉMO, à remplacer par les textes de l'équipe
+Reactions:[
+['r','Comments from readers asking for sources.'],
+['r','Several readers link to an official page that confirms the story.'],
+['r','The author answers questions in the comments and adds a correction.'],
+['r','A fact-checking website has reviewed the post and confirms it.'],
+['n','10,000 likes.'],
+['n','Shared by a few of your friends.'],
+['f','2 million shares in 1 hour, comments turned off.','Viral speed and no comments: nobody can question it.'],
+['f','Hundreds of identical comments from accounts with no photo.','Bot accounts can fake a crowd that agrees.'],
+['f','Comments saying "It\'s fake!" have been deleted.','Hiding criticism is a sign that the post cannot stand being checked.'],
+['f','Top comment: "I don\'t need proof, I trust this page!"','Trust in a page is not evidence.']]
 };
 const CARDS=Object.entries(RAW).flatMap(([cat,a])=>a.map((x,i)=>({id:cat[0]+String(i+1).padStart(2,'0'),category:cat,type:{r:'reliable',n:'neutral',f:'redflag'}[x[0]],text:x[1],why:x[2]||''})));
 const HEADLINES=[

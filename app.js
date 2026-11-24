@@ -1,6 +1,6 @@
 // ===== RÉGLAGES =====
-const VERSION='4'; // à changer seulement si la structure des données de la salle change
-const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
+const VERSION='5'; // à changer seulement si la structure des données de la salle change
+const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
 const db=firebase.database(),app=document.getElementById('app'),$=id=>document.getElementById(id);
@@ -80,7 +80,7 @@ function render(){
   // Moins de 3 joueurs pendant une partie : le salon se ferme tout seul
   if(isHost()&&R.phase!=='lobby'&&R.phase!=='end'&&Object.keys(R.players).length<CONFIG.minPlayers){closeRoom(`${lastLeft||'A player'} left the game. Not enough players to continue.`);return}
   if(isHost()&&R.phase!==lastPhase){lastPhase=R.phase;beat()}
-  if(isHost()&&R.phase==='vote'&&ids.every(i=>(R.votes||{})[i]))reveal();
+  if(isHost()&&R.phase==='vote'&&ids.every(voted))reveal();
 }
 function outdated(){
   show(`<p class="FAKE">Your page is not up to date (yours: ${VERSION}, the room: ${esc(R.ver||'old')}).</p><p>Reload the page. If this message stays, close the tab and open the site again from the QR code.</p><button id="rl">Reload</button>`);
@@ -109,7 +109,7 @@ async function cleanup(){
   }catch(e){}
 }
 function restart(){
-  const u={phase:'lobby',round:0,used:null,missed:null,roles:null,hands:null,spare:null,plays:null,post:null,votes:null,verdict:null,endsAt:null,endAt:null};
+  const u={phase:'lobby',round:0,used:null,missed:null,roles:null,hands:null,spare:null,plays:null,post:null,votes:null,suspects:null,french:null,verdict:null,endsAt:null,endAt:null};
   Object.keys(R.players).forEach(i=>u[`players/${i}/score`]=0);done=0;ref.update(u);
 }
 function lobby(){
@@ -124,6 +124,7 @@ function lobby(){
   seenPlayers=ids;wasReady=ready;
   if(isHost())$('st').onclick=startRound;
 }
+const voted=i=>(R.votes||{})[i]&&(R.suspects||{})[i]; // vote complet = SHARE/REPORT + suspect
 const cardOf=id=>CARDS.find(c=>c.id===id);
 const cardBox=c=>`<span class="muted">${c.category}</span><br>${esc(c.text)}`;
 const playedBy=id=>{const i=Object.keys(R.plays||{}).find(k=>R.plays[k]===id);return i&&R.players[i]?pn(i):'?'}; // retrouve qui a joué la carte
@@ -136,7 +137,7 @@ function startRound(){
   shuffle(ids).forEach((i,j)=>roles[i]=j<t?'Troll':'Citizen');
   ids.forEach(i=>{const tr=roles[i]==='Troll';hands[i]=shuffle([...F.splice(0,tr?3:1),...Rl.splice(0,tr?1:3),...N.splice(0,1)])});
   const rest=shuffle([...F,...Rl,...N]);ids.forEach(i=>spare[i]=rest.pop());
-  ref.update({phase:'role',round:n,headline:HEADLINES[k],used:[...used,k],roles,hands,spare,plays:null,post:null,votes:null,verdict:null,endsAt:null});
+  ref.update({phase:'role',round:n,headline:HEADLINES[k],used:[...used,k],roles,hands,spare,plays:null,post:null,votes:null,suspects:null,french:null,verdict:null,endsAt:null});
 }
 function role(){
   if(R.round!==seenRound){seenRound=R.round;roleShown=false;sel=null}
@@ -167,24 +168,30 @@ function updTimer(){
   const l=Math.max(0,Math.ceil((R.endsAt-now())/1000));t.textContent=l;t.classList.toggle('urgent',l>0&&l<=10);if(l<=0&&isHost())toVote();
 }
 function vote(){
-  const ids=act(),v=R.votes||{},mine=v[pid];
-  show(`<h2>Vote</h2><div class="box headline">${esc(R.headline)}</div>${postBox(false)}${R.roles[pid]?`<p>Is this post reliable enough to share?</p>
-  <button id="s" class="${mine==='SHARE'?'':'ghost'}">SHARE</button><button id="r" class="${mine==='REPORT'?'':'ghost'}">REPORT</button>`:'<p>You will play from the next round.</p>'}
-  <h2>Votes in</h2><p>${ids.map(i=>`${pn(i)} ${v[i]?'✓':'…'}`).join(', ')}</p>
+  const ids=act(),v=R.votes||{},mine=v[pid],sus=(R.suspects||{})[pid];
+  show(`<h2>Vote</h2><div class="box headline">${esc(R.headline)}</div>${postBox(false)}${R.roles[pid]?`<p>1. Is this post reliable enough to share?</p>
+  <button id="s" class="${mine==='SHARE'?'':'ghost'}">SHARE</button><button id="r" class="${mine==='REPORT'?'':'ghost'}">REPORT</button>
+  <p>2. Who is the Troll?</p><div>${ids.filter(i=>i!==pid).map(i=>`<button class="${sus===i?'':'ghost'}" data-sus="${i}">${pn(i)}</button>`).join('')}</div>
+  ${mine&&sus?'<p class="muted">Vote saved. You can still change it.</p>':'<p class="muted">Choose both to validate your vote.</p>'}`:'<p>You will play from the next round.</p>'}
+  <h2>Votes in</h2><p>${ids.map(i=>`${pn(i)} ${voted(i)?'✓':'…'}`).join(', ')}</p>
   ${isHost()?'<button id="go" class="ghost">Reveal verdict now</button>':'<p class="muted">The verdict appears when everyone has voted.</p>'}`);
   if($('s')){$('s').onclick=()=>ref.child('votes/'+pid).set('SHARE');$('r').onclick=()=>ref.child('votes/'+pid).set('REPORT')}
+  app.querySelectorAll('[data-sus]').forEach(b=>b.onclick=()=>ref.child('suspects/'+pid).set(b.dataset.sus));
   if(isHost())$('go').onclick=reveal;
 }
 function reveal(){
   if(done===R.round)return;done=R.round;
   const flags=R.post.filter(id=>cardOf(id).type==='redflag'),fake=flags.length>0,votes=R.votes||{},ids=act();
   const shared=ids.filter(i=>votes[i]==='SHARE').length>ids.length/2,good=fake?'REPORT':'SHARE',upd={};
-  const fooled=ids.filter(i=>R.roles[i]!=='Troll'&&votes[i]!==good).length; // Citizens qui se sont trompés
-  ids.forEach(i=>{let s=R.players[i].score;
-    if(R.roles[i]==='Troll')s+=fooled*CONFIG.pointsTrollWin; // le Troll gagne quand les Citizens se trompent
-    else if(votes[i]===good)s+=CONFIG.pointsCorrectVote;
-    upd[`players/${i}/score`]=s});
-  upd.phase='verdict';upd.verdict={fake,shared};
+  const sus=R.suspects||{},isTroll=i=>R.roles[i]==='Troll';
+  const fooled=ids.filter(i=>!isTroll(i)&&votes[i]!==good).length; // Citizens qui se sont trompés (ou n'ont pas voté)
+  const pts={}; // détail des points de la manche, affiché au verdict
+  ids.forEach(i=>{
+    const d=isTroll(i)?{fooled:fooled*CONFIG.pointsTrollWin} // Fooled you! : le Troll gagne quand les Citizens se trompent
+      :{right:votes[i]===good?CONFIG.pointsCorrectVote:0, // Right vote
+        found:sus[i]&&isTroll(sus[i])?CONFIG.pointsTrollFound:0}; // Troll found
+    pts[i]=d;upd[`players/${i}/score`]=R.players[i].score+Object.values(d).reduce((a,b)=>a+b,0)});
+  upd.phase='verdict';upd.verdict={fake,shared,pts};
   if(fake&&shared)upd.missed=[...(R.missed||[]),...flags];
   ref.update(upd);
 }
@@ -192,12 +199,25 @@ function verdict(){
   const V=R.verdict,ids=Object.keys(R.players),tr=ids.filter(i=>R.roles[i]==='Troll');
   show(`<div class="verdict ${V.fake?'FAKE':'FACT'}">${V.fake?'FAKE':'FACT'}</div><p>${V.shared?'The table shared the post.':'The table reported the post.'}</p>
   <h2>The post</h2>${postBox(true)}
-  <h2>Trolls</h2><p>${tr.length?tr.map(i=>pn(i)).join(', '):'There was no Troll this round.'}</p><h2>Scores</h2>${scores()}
+  <h2>Trolls</h2><p>${tr.length?tr.map(i=>pn(i)).join(', '):'There was no Troll this round.'}</p>
+  <h2>Points this round</h2>${roundPts()}<h2>Scores</h2>${scores()}
   ${isHost()?`<p class="muted">Lost in translation: tap a name for each French word.</p>${ids.map(i=>`<button class="ghost" data-i="${i}">${pn(i)} −${CONFIG.frenchPenalty}</button>`).join('')}<div><button id="nx">${R.round>=CONFIG.rounds?'See final scores':'Next round'}</button></div>`:'<p class="muted">Waiting for the host.</p>'}`);
   if(isHost()){
-    app.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>ref.child(`players/${b.dataset.i}/score`).transaction(s=>(s||0)-CONFIG.frenchPenalty));
+    app.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>{const i=b.dataset.i;ref.child(`players/${i}/score`).transaction(s=>(s||0)-CONFIG.frenchPenalty);ref.child(`french/${i}`).transaction(n=>(n||0)+1)});
     $('nx').onclick=startRound;
   }
+}
+// Détail des points de la manche : Right vote, Troll found, Fooled you!, Lost in translation
+function roundPts(){
+  const P=(R.verdict&&R.verdict.pts)||{},F=R.french||{};
+  return `<ul class="pts">${Object.keys(P).filter(i=>R.players[i]).map(i=>{
+    const d=P[i],fr=(F[i]||0)*CONFIG.frenchPenalty,parts=[];
+    if(d.right)parts.push(`Right vote +${d.right}`);
+    if(d.found)parts.push(`Troll found +${d.found}`);
+    if(d.fooled)parts.push(`Fooled you! +${d.fooled}`);
+    if(fr)parts.push(`Lost in translation −${fr}`);
+    const tot=(d.right||0)+(d.found||0)+(d.fooled||0)-fr;
+    return `<li><strong>${pn(i)}</strong> ${tot>=0?'+':'−'}${Math.abs(tot)}${parts.length?` <span class="muted">(${parts.join(', ')})</span>`:''}</li>`}).join('')}</ul>`;
 }
 function final(){
   const miss=[...new Set(R.missed||[])].map(cardOf).filter(Boolean);
