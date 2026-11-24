@@ -1,15 +1,17 @@
 /* ===== Polices de la charte (fichiers dans le dossier ADDS/) ===== */
 @font-face{font-family:"Six Hands Brush";src:url(../ADDS/SixHandsBrush.woff2) format("woff2");font-display:swap}
 @font-face{font-family:"Six Hands Condensed";src:url(../ADDS/SixHandsCondensed.woff2) format("woff2");font-display:swap}
+/* Police de lecture (phrases, champs de saisie) : Work Sans, licence libre OFL */
+@font-face{font-family:"Work Sans";src:url(../ADDS/WorkSans.woff2) format("woff2");font-weight:100 900;font-display:swap}
 
 /* ===== Couleurs de la charte ===== */
 :root{--yellow:#ffe925;--blue:#314995;--black:#020203;--white:#fff;--cream:#fbfae6;--muted:#5c5c66;--line:#020203;--r:10px;
-  --brush:"Six Hands Brush","Segoe Print",cursive;--text:"Six Hands Condensed","Arial Narrow",system-ui,sans-serif}
+  --brush:"Six Hands Brush","Segoe Print",cursive;--text:"Six Hands Condensed","Arial Narrow",system-ui,sans-serif;--read:"Work Sans",system-ui,sans-serif}
 
 *{box-sizing:border-box}
 html{background:var(--cream)}
 /* Fond crème + grand triangle jaune en bas à droite (motif diagonal de la charte) */
-body{margin:0;min-height:100vh;color:var(--black);font:24px/1.35 var(--text);letter-spacing:.01em;
+body{margin:0;min-height:100vh;color:var(--black);font:18px/1.5 var(--read);
   background:linear-gradient(135deg,transparent 78%,var(--yellow) 78%) fixed,var(--cream)}
 main{max-width:34rem;margin:0 auto;padding:1.5rem 1.25rem 3rem}
 
@@ -24,11 +26,11 @@ h2{font-family:var(--text);font-weight:400;font-size:1.6rem;text-transform:upper
 .logo img{width:11rem;max-width:55vw;height:auto}
 
 /* ===== Formulaires ===== */
-label{display:block;margin:1rem 0 .25rem;font-size:.9em;text-transform:uppercase;letter-spacing:.05em}
+label{display:block;margin:1rem 0 .25rem;font-family:var(--text);font-size:1.55rem;text-transform:uppercase;letter-spacing:.05em}
 input,textarea,select{width:100%;font:inherit;padding:.55rem .75rem;border:2px solid var(--black);border-radius:var(--r);background:var(--white);color:inherit}
 
 /* ===== Boutons : bleu plein (principal) ou contour noir (secondaire) ===== */
-button{font:inherit;font-size:.95em;text-transform:uppercase;letter-spacing:.05em;padding:.6rem 1.2rem;border:2px solid var(--blue);border-radius:var(--r);
+button{font:inherit;font-family:var(--text);font-size:1.55rem;text-transform:uppercase;letter-spacing:.05em;padding:.6rem 1.2rem;border:2px solid var(--blue);border-radius:var(--r);
   background:var(--blue);color:var(--white);cursor:pointer;margin:.75rem .5rem 0 0;min-height:3rem}
 button.ghost{background:transparent;color:var(--black);border-color:var(--black)}
 button[disabled]{opacity:.35;cursor:not-allowed}
@@ -38,7 +40,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 /* ===== Blocs ===== */
 .box{border:2px solid var(--black);border-radius:var(--r);padding:1rem;margin:1rem 0;background:var(--white)}
 /* Le titre d'actualité : bandeau bleu, texte blanc */
-.headline{font-size:1.6rem;line-height:1.15}
+.headline{font-size:1.3rem;font-weight:600;line-height:1.3}
 .box.headline{background:var(--blue);color:var(--white);border-color:var(--blue)}
 .timer{font-size:5.5rem;line-height:1;text-align:center;margin:1rem 0;font-variant-numeric:tabular-nums}
 
@@ -57,8 +59,8 @@ li,p{overflow-wrap:anywhere}
 
 /* Cartes à jouer */
 .card{display:block;width:100%;text-align:left;margin:.5rem 0;background:var(--white);color:var(--black);border:2px solid var(--black);
-  text-transform:none;letter-spacing:.01em;font-size:1em;line-height:1.3;padding:.75rem 1rem}
-.card .muted,.post .muted{text-transform:uppercase;letter-spacing:.06em;font-size:.85em}
+  font-family:var(--read);text-transform:none;letter-spacing:0;font-size:1rem;line-height:1.4;padding:.75rem 1rem}
+.card .muted,.post .muted{font-family:var(--text);text-transform:uppercase;letter-spacing:.06em;font-size:1.3em}
 .card.on{background:var(--yellow);border-color:var(--black);outline:3px solid var(--black)}
 .post{padding-left:1.6rem}.post li{margin:.8rem 0}
 
