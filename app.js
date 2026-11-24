@@ -9,7 +9,9 @@ const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math
 const uid=()=>Math.random().toString(36).slice(2,10);
 const store={get:k=>{try{return sessionStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{sessionStorage.setItem(k,v)}catch(e){}},del:k=>{try{sessionStorage.removeItem(k)}catch(e){}}};
 const show=h=>{app.innerHTML=h},err=m=>{const e=$('err');if(e)e.textContent=m};
-let room,pid,ref,R,offset=0,roleShown=false,seenRound=0,sel=null,done=0,lastPhase=null;
+// Petit message en haut de l'écran, qui disparaît après 5 secondes
+const notice=m=>{const d=document.createElement('div');d.className='box';d.textContent=m;d.style.cssText='position:fixed;top:1rem;left:50%;transform:translateX(-50%);margin:0;max-width:90%;background:var(--bg);z-index:9';document.body.appendChild(d);setTimeout(()=>d.remove(),5000)};
+let prevR=null,lastLeft='',room,pid,ref,R,offset=0,roleShown=false,seenRound=0,sel=null,done=0,lastPhase=null;
 db.ref('.info/serverTimeOffset').on('value',s=>{offset=s.val()||0});
 const now=()=>Date.now()+offset,isHost=()=>R&&R.host===pid,pn=i=>esc(R.players[i].name);
 const act=()=>Object.keys(R.players).filter(i=>R.roles&&R.roles[i]);
@@ -43,8 +45,18 @@ async function join(code,name){
   pid=uid();await db.ref(`rooms/${code}/players/${pid}`).set({name,score:0});enter(code);
 }
 function enter(code){
-  room=code;done=0;lastPhase=null;store.set('fof',JSON.stringify({code,pid}));ref=db.ref('rooms/'+code);
-  ref.on('value',s=>{R=s.val();if(!R){leave();err('The room was closed.');return}render()});
+  prevR=null;lastLeft='';room=code;done=0;lastPhase=null;store.set('fof',JSON.stringify({code,pid}));ref=db.ref('rooms/'+code);
+  ref.on('value',s=>{
+    const old=prevR;R=prevR=s.val();
+    // Joueurs présents avant et absents maintenant = joueurs qui ont quitté
+    const gone=old&&R?Object.keys(old.players||{}).filter(i=>i!==pid&&!(R.players||{})[i]).map(i=>old.players[i].name):[];
+    if(gone.length)lastLeft=gone.join(', ');
+    if(!R){
+      const few=old&&old.phase!=='lobby'&&old.phase!=='end'&&Object.keys(old.players||{}).length<CONFIG.minPlayers;
+      const who=lastLeft||'A player';leave();
+      err(few?`${who} left the game. Not enough players to continue.`:'The room was closed.');return}
+    render();gone.forEach(n=>notice(`${n} left the game.`));
+  });
   setInterval(updTimer,500);setInterval(beat,120000);cleanup();
 }
 function leave(){store.del('fof');if(ref)ref.off();ref=R=null;history.replaceState(null,'',location.pathname);home()}
