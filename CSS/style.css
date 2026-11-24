@@ -1,12 +1,12 @@
 /* ===== Polices de la charte (fichiers dans le dossier ADDS/) ===== */
 @font-face{font-family:"Six Hands Brush";src:url(../ADDS/SixHandsBrush.woff2) format("woff2");font-display:swap}
 @font-face{font-family:"Six Hands Condensed";src:url(../ADDS/SixHandsCondensed.woff2) format("woff2");font-display:swap}
-/* Police de lecture (phrases, champs de saisie) : Work Sans, licence libre OFL */
-@font-face{font-family:"Work Sans";src:url(../ADDS/WorkSans.woff2) format("woff2");font-weight:100 900;font-display:swap}
+/* Police de lecture (phrases, champs de saisie) : Shantell Sans, style écrit à la main mais lisible, licence libre OFL */
+@font-face{font-family:"Shantell Sans";src:url(../ADDS/ShantellSans.woff2) format("woff2");font-weight:300 800;font-display:swap}
 
 /* ===== Couleurs de la charte ===== */
 :root{--yellow:#ffe925;--blue:#314995;--black:#020203;--white:#fff;--cream:#fbfae6;--muted:#5c5c66;--line:#020203;--r:10px;
-  --brush:"Six Hands Brush","Segoe Print",cursive;--text:"Six Hands Condensed","Arial Narrow",system-ui,sans-serif;--read:"Work Sans",system-ui,sans-serif}
+  --brush:"Six Hands Brush","Segoe Print",cursive;--text:"Six Hands Condensed","Arial Narrow",system-ui,sans-serif;--read:"Shantell Sans",system-ui,sans-serif}
 
 *{box-sizing:border-box}
 html{background:var(--cream)}
