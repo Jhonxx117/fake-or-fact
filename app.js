@@ -20,7 +20,7 @@ const scores=()=>`<ul>${Object.keys(R.players).sort((a,b)=>R.players[b].score-R.
 // ----- Accueil, création, connexion -----
 function home(){
   const q=(new URLSearchParams(location.search).get('room')||'').toUpperCase().slice(0,4);
-  show(`<h1>Fake or Fact</h1><p class="sub">No account, no personal data. Just a nickname.</p>
+  show(`<h1 class="logo"><img src="ADDS/logo.png" alt="Fake or Fact"></h1><p class="sub">No account, no personal data. Just a nickname.</p>
   <label for="nm">Nickname</label><input id="nm" maxlength="14" autocomplete="off">
   <label for="cd">Room code</label><input id="cd" maxlength="4" value="${esc(q)}" autocapitalize="characters" autocomplete="off">
   <p id="err" class="FAKE"></p><button id="jn">Join</button>${q?'':'<button id="mk" class="ghost">Create a game</button>'}`);
