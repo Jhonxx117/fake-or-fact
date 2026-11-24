@@ -159,3 +159,78 @@ button.how{background:transparent;color:var(--blue);border-color:var(--blue)}
   .modal .sheet{animation:rise .45s var(--ease)}
 }
 @keyframes fadeIn{from{opacity:0}}
+
+/* ===================== EFFETS V7 ===================== */
+main{position:relative;z-index:1}
+
+/* --- Décor : triangle bleu en haut à gauche (seulement si l'écran est assez large) --- */
+#deco{position:fixed;inset:0;pointer-events:none;z-index:0;display:none;overflow:hidden}
+@media (min-width:900px){#deco{display:block}}
+#deco .blue-tri{position:absolute;left:0;top:0;width:24vw;height:32vh;background:var(--blue);clip-path:polygon(0 0,100% 0,0 100%);opacity:.95}
+
+/* --- Fond sombre qui s'efface (révélation du rôle) --- */
+.flash{position:fixed;inset:0;background:var(--black);z-index:30;pointer-events:none;animation:flashOut .9s ease forwards}
+@keyframes flashOut{0%{opacity:.85}100%{opacity:0}}
+
+/* --- Rôle --- */
+.rolebox .youare{margin:0 0 .2rem;color:var(--muted);font-family:var(--text);text-transform:uppercase;letter-spacing:.1em;font-size:1.3rem}
+.rolebox .rolename{font-family:var(--brush);font-weight:400;font-size:2.6rem;line-height:1.1;position:relative}
+.rolebox.citizen{border-color:var(--blue)}
+.rolebox.troll{border-color:var(--black);background:#fffbd6}
+
+/* --- Les cartes du post ressemblent à de vraies cartes --- */
+.post{list-style:none;padding-left:0;counter-reset:c}
+.post li{background:var(--white);border:2px solid var(--black);border-radius:var(--r);padding:.6rem .8rem;margin:.6rem 0}
+
+/* --- Chrono en anneau --- */
+.tring{position:relative;width:11rem;height:11rem;margin:1rem auto}
+.tring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+.tring circle{fill:none;stroke-width:9}
+.tring .bg{stroke:rgba(2,2,3,.1)}
+.tring .fg{stroke:var(--blue);stroke-linecap:round;stroke-dasharray:339.3;stroke-dashoffset:0;transition:stroke-dashoffset .5s linear,stroke .3s}
+.tring .fg.urgent{stroke:#d62828}
+.tring .timer{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;margin:0;font-size:4.5rem}
+/* Bords de l'écran qui pulsent les 5 dernières secondes */
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:25;box-shadow:inset 0 0 0 0 rgba(214,40,40,0);transition:box-shadow .3s}
+body.edge::after{box-shadow:inset 0 0 60px 12px rgba(214,40,40,.55)}
+
+/* --- Podium --- */
+.podium{display:flex;align-items:flex-end;justify-content:center;gap:.6rem;margin:1.5rem 0 1rem;min-height:15rem}
+.podium .step{flex:1;max-width:8.5rem;text-align:center}
+.podium .who{margin-bottom:.4rem;line-height:1.3}
+.podium .bar{font-family:var(--brush);font-size:2.6rem;color:var(--white);border:2px solid var(--black);border-bottom:none;border-radius:var(--r) var(--r) 0 0;display:flex;align-items:flex-start;justify-content:center;padding-top:.3rem;transform-origin:bottom}
+.podium .p1 .bar{height:9rem;background:var(--blue)}
+.podium .p2 .bar{height:6.5rem;background:var(--black)}
+.podium .p3 .bar{height:4.5rem;background:var(--yellow);color:var(--black)}
+
+/* --- Confettis --- */
+canvas.confetti{position:fixed;inset:0;z-index:40;pointer-events:none}
+
+@media (prefers-reduced-motion:no-preference){
+  /* Rôle : Troll = effet « bug » rouge/bleu ; Citizen = halo */
+  .rolebox.troll.reveal .rolename{animation:glitch .9s steps(2,end) .1s 2}
+  .rolebox.citizen.reveal{animation:flip .5s var(--ease) backwards,halo 1.4s ease .3s 2}
+  .rolebox .youare{animation:rise .4s var(--ease) backwards}
+  .rolebox.reveal .rolename{animation-fill-mode:backwards}
+  /* Cartes du post qui se retournent une par une (dos jaune) */
+  .post.flipcards.in li{animation:cardFlip .7s var(--ease) backwards}
+  .post.flipcards.in li:nth-child(1){animation-delay:.3s}.post.flipcards.in li:nth-child(2){animation-delay:.75s}.post.flipcards.in li:nth-child(3){animation-delay:1.2s}
+  .post.flipcards.in li:nth-child(4){animation-delay:1.65s}.post.flipcards.in li:nth-child(5){animation-delay:2.1s}.post.flipcards.in li:nth-child(6){animation-delay:2.55s}
+  /* Verdict : l'écran tremble si un faux post a été partagé */
+  #app.shake{animation:shake .6s cubic-bezier(.36,.07,.19,.97) .5s both}
+  /* Podium : les barres montent (3e, 2e, puis 1er) */
+  .podium .bar{animation:grow .8s var(--ease) backwards}
+  .podium .who{animation:rise .5s var(--ease) backwards}
+  .podium .p3 .bar{animation-delay:.2s}.podium .p3 .who{animation-delay:.8s}
+  .podium .p2 .bar{animation-delay:.5s}.podium .p2 .who{animation-delay:1.1s}
+  .podium .p1 .bar{animation-delay:.8s}.podium .p1 .who{animation-delay:1.5s}
+}
+@keyframes cardFlip{0%{transform:perspective(700px) rotateY(180deg);background:var(--yellow);color:transparent}
+  49%{background:var(--yellow);color:transparent}50%{transform:perspective(700px) rotateY(90deg);background:var(--white);color:inherit}
+  100%{transform:none;background:var(--white)}}
+@keyframes glitch{0%{transform:translate(0);text-shadow:none}20%{transform:translate(-3px,1px) skewX(-8deg);text-shadow:3px 0 #d62828,-3px 0 var(--blue)}
+  40%{transform:translate(3px,-1px) skewX(6deg);text-shadow:-3px 0 #d62828,3px 0 var(--blue)}60%{transform:translate(-2px,0);text-shadow:2px 0 #d62828}
+  80%{transform:translate(2px,1px) skewX(-3deg);text-shadow:-2px 0 var(--blue)}100%{transform:none;text-shadow:none}}
+@keyframes halo{0%,100%{box-shadow:0 0 0 0 rgba(255,233,37,0)}50%{box-shadow:0 0 0 10px rgba(255,233,37,.7)}}
+@keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-8px) rotate(-.5deg)}40%,60%{transform:translateX(8px) rotate(.5deg)}}
+@keyframes grow{from{transform:scaleY(0)}}
