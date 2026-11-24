@@ -163,10 +163,11 @@ button.how{background:transparent;color:var(--blue);border-color:var(--blue)}
 /* ===================== EFFETS V7 ===================== */
 main{position:relative;z-index:1}
 
-/* --- Décor : triangle bleu en haut à gauche (seulement si l'écran est assez large) --- */
-#deco{position:fixed;inset:0;pointer-events:none;z-index:0;display:none;overflow:hidden}
-@media (min-width:900px){#deco{display:block}}
-#deco .blue-tri{position:absolute;left:0;top:0;width:24vw;height:32vh;background:var(--blue);clip-path:polygon(0 0,100% 0,0 100%);opacity:.95}
+/* --- Triangle bleu en haut à gauche : dessiné dans le fond de la page (comme le jaune), donc visible tout de suite, sans animation --- */
+@media (min-width:900px){
+  body{background:linear-gradient(to bottom right,var(--blue) 50%,transparent 50%) 0 0/24vw 32vh no-repeat fixed,
+    linear-gradient(135deg,transparent 78%,var(--yellow) 78%) fixed,var(--cream)}
+}
 
 /* --- Fond sombre qui s'efface (révélation du rôle) --- */
 .flash{position:fixed;inset:0;background:var(--black);z-index:30;pointer-events:none;animation:flashOut .9s ease forwards}

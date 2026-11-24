@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='8'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
+const VERSION='9'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -310,9 +310,6 @@ function final(){
   ${miss.length?`<h2>Red flags the table missed</h2><ul>${miss.map(c=>`<li><strong>${esc(c.text)}</strong><br>${esc(c.why)}</li>`).join('')}</ul>`:'<p>No red flag slipped through. Well done.</p>'}
 `);
 }
-
-// ----- Décor : triangle bleu en haut à gauche (grands écrans seulement, voir CSS) -----
-(function deco(){const d=document.createElement('div');d.id='deco';d.setAttribute('aria-hidden','true');d.innerHTML='<div class="blue-tri"></div>';document.body.prepend(d)})();
 
 // ----- Démarrage : reprend la partie en cours après un rechargement -----
 (async()=>{
