@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='5'; // à changer seulement si la structure des données de la salle change
+const VERSION='6'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -21,15 +21,43 @@ const now=()=>Date.now()+offset,isHost=()=>R&&R.host===pid,pn=i=>esc(R.players[i
 const act=()=>Object.keys(R.players).filter(i=>R.roles&&R.roles[i]);
 const scores=()=>`<ul>${Object.keys(R.players).sort((a,b)=>R.players[b].score-R.players[a].score).map(i=>`<li>${pn(i)}: ${R.players[i].score}</li>`).join('')}</ul>`;
 
+// ----- Fenêtre « How to play » : règles très simples, en anglais -----
+function howTo(){
+  if($('howto'))return;
+  const d=document.createElement('div');d.id='howto';d.className='modal';
+  d.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="How to play">
+  <button class="close ghost" aria-label="Close">✕</button>
+  <h1>How to play</h1>
+  <p class="big">Build a post together.<br>Is it <span class="FACT">TRUE</span> or a <span class="FAKE">TRAP</span>?</p>
+  <h2>Who are you? 🤫</h2>
+  <ul class="steps"><li>😇 <strong>Citizen:</strong> find the truth and find the Troll.</li>
+  <li>😈 <strong>Troll:</strong> make the others vote wrong.</li></ul>
+  <h2>The golden rule 🚩</h2>
+  <p><strong>1 red flag</strong> in the post = <span class="FAKE">FAKE</span>.<br>No red flag = <span class="FACT">FACT</span>.</p>
+  <h2>Each round</h2>
+  <ol class="steps"><li>📰 Read the news.</li><li>🃏 Look at your 5 cards. Play 1.</li><li>🗣️ Talk for 90 seconds. <strong>English only!</strong></li>
+  <li>🗳️ Vote <strong>SHARE</strong> or <strong>REPORT</strong>, and pick the Troll.</li><li>⚖️ See the answer and your points.</li></ol>
+  <h2>Points ⭐</h2>
+  <ul class="steps"><li>✅ Good vote: <strong>+2</strong></li><li>🔍 You found the Troll: <strong>+1</strong></li>
+  <li>😈 Troll: <strong>+1</strong> for each player who votes wrong</li><li>🇫🇷 A French word: <strong>−1</strong></li></ul>
+  <p class="big">After 6 rounds, the most points wins! 🏆</p>
+  <button class="close">Got it!</button></div>`;
+  const close=()=>{d.classList.add('out');setTimeout(()=>d.remove(),250);document.removeEventListener('keydown',esc_)};
+  const esc_=e=>{if(e.key==='Escape')close()};
+  d.addEventListener('click',e=>{if(e.target===d||e.target.classList.contains('close'))close()});
+  document.addEventListener('keydown',esc_);document.body.appendChild(d);d.querySelector('.close').focus();
+}
+
 // ----- Accueil, création, connexion -----
 function home(){
   const q=(new URLSearchParams(location.search).get('room')||'').toUpperCase().slice(0,4);
   show(`<h1 class="logo"><img src="ADDS/logo.png" alt="Fake or Fact"></h1><p class="sub">No account, no personal data. Just a nickname.</p>
   <label for="nm">Nickname</label><input id="nm" maxlength="14" autocomplete="off">
   <label for="cd">Room code</label><input id="cd" maxlength="4" value="${esc(q)}" autocapitalize="characters" autocomplete="off">
-  <p id="err" class="FAKE"></p><button id="jn">Join</button>${q?'':'<button id="mk" class="ghost">Create a game</button>'}`);
+  <p id="err" class="FAKE"></p><button id="jn">Join</button>${q?'':'<button id="mk" class="ghost">Create a game</button>'}<div><button id="how" class="how">❓ How to play</button></div>`);
   $('jn').onclick=()=>join($('cd').value.trim().toUpperCase(),$('nm').value.trim());
   if($('mk'))$('mk').onclick=create;
+  $('how').onclick=howTo;
   animate('home');
   $('cd').oninput=e=>{e.target.value=e.target.value.toUpperCase()}; // code de salle toujours en majuscules
 }
@@ -120,8 +148,8 @@ function lobby(){
   show(`<h1>Room ${room}</h1><p class="sub">Scan to join, or enter the code on the home page.</p>
   <div class="qr">${qr.createSvgTag(5,0)}</div><p class="muted">${esc(url)}</p>
   <h2>Players (${ids.length}/${CONFIG.maxPlayers})</h2><ul class="players">${ids.map(i=>`<li class="${seenPlayers&&!seenPlayers.includes(i)?'join':''}">${pn(i)}${i===R.host?' (host)':''}</li>`).join('')}</ul>
-  ${isHost()?`<button id="st" class="${ready?'':'locked'} ${boom?'boom':''}" ${ready?'':'disabled'}>Start game</button><p class="muted">${ready?'Everyone is here? Let\'s go!':`At least ${CONFIG.minPlayers} players needed (${need} more).`}</p>`:'<p class="muted">Waiting for the host to start.</p>'}`);
-  seenPlayers=ids;wasReady=ready;
+  ${isHost()?`<button id="st" class="${ready?'':'locked'} ${boom?'boom':''}" ${ready?'':'disabled'}>Start game</button><p class="muted">${ready?'Everyone is here? Let\'s go!':`At least ${CONFIG.minPlayers} players needed (${need} more).`}</p>`:'<p class="muted">Waiting for the host to start.</p>'}<div><button id="how" class="how">❓ How to play</button></div>`);
+  seenPlayers=ids;wasReady=ready;$('how').onclick=howTo;
   if(isHost())$('st').onclick=startRound;
 }
 const voted=i=>(R.votes||{})[i]&&(R.suspects||{})[i]; // vote complet = SHARE/REPORT + suspect
@@ -144,7 +172,7 @@ const trollTag=c=>c.type==='redflag'?'<br><span class="tag flag">🚩 Red flag</
 // Troll : état du post EN DIRECT pendant le choix des cartes (d'après les cartes déjà jouées)
 function trollLive(){
   const pl=Object.values(R.plays||{}),n=act().length,fake=pl.some(id=>cardOf(id).type==='redflag');
-  if(!pl.length)return `<div class="box"><p><strong>Troll secret:</strong> nobody has played yet. If nobody plays a red flag, the post will be a <span class="FACT">FACT</span>.</p></div>`;
+  if(!pl.length)return `<div class="box"><p><strong>Troll secret:</strong> no card has been played yet. Wait: here you will see if the post is FAKE or FACT, card after card.</p></div>`;
   return `<div class="box"><p><strong>Troll secret:</strong> with the ${pl.length}/${n} cards played so far, the post is <span class="${fake?'FAKE':'FACT'}">${fake?'FAKE':'FACT'}</span>.</p><p class="muted">${fake?'There is already a red flag in it: you can play a good card to hide.':'No red flag yet: play one of your 🚩 cards to make it FAKE, or keep it a FACT and make the Citizens REPORT it.'}</p></div>`;
 }
 function role(){

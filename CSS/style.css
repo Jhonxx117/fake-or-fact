@@ -140,3 +140,22 @@ button.locked::after{content:"";position:absolute;left:-8%;right:-8%;top:50%;hei
 .tag{display:inline-block;margin-top:.4rem;padding:.1rem .5rem;border-radius:4px;font-family:var(--text);text-transform:uppercase;letter-spacing:.05em;font-size:1.15em}
 .tag.flag{background:#d62828;color:var(--white)}
 .tag.safe{border:1px solid var(--muted);color:var(--muted)}
+
+/* Bouton « secret info » : jaune pour qu'on le remarque (même bouton pour tous les joueurs) */
+button.secret{background:var(--yellow);color:var(--black);border-color:var(--black)}
+
+/* ===== Fenêtre « How to play » ===== */
+button.how{background:transparent;color:var(--blue);border-color:var(--blue)}
+.modal{position:fixed;inset:0;z-index:20;background:rgba(2,2,3,.55);display:flex;align-items:flex-start;justify-content:center;padding:1rem;overflow-y:auto}
+.modal .sheet{position:relative;background:var(--cream);border:2px solid var(--black);border-radius:var(--r);max-width:30rem;width:100%;padding:1.25rem 1.25rem 1.5rem;margin:auto 0;box-shadow:0 10px 30px rgba(2,2,3,.3)}
+.modal h1{margin-top:0}
+.modal .big{font-size:1.15em;font-weight:600}
+.modal .steps{padding-left:1.4rem}.modal .steps li{margin:.35rem 0}
+.modal ul.steps{list-style:none;padding-left:0}
+.modal button.close.ghost{position:absolute;top:.5rem;right:.5rem;margin:0;min-height:0;padding:.3rem .7rem}
+.modal.out{opacity:0;transition:opacity .25s}
+@media (prefers-reduced-motion:no-preference){
+  .modal{animation:fadeIn .25s ease}
+  .modal .sheet{animation:rise .45s var(--ease)}
+}
+@keyframes fadeIn{from{opacity:0}}
