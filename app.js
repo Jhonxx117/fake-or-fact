@@ -98,7 +98,8 @@ function lobby(){
 }
 const cardOf=id=>CARDS.find(c=>c.id===id);
 const cardBox=c=>`<span class="muted">${c.category}</span><br>${esc(c.text)}`;
-const postBox=mark=>`<ol class="post">${R.post.map(id=>{const c=cardOf(id);return `<li>${cardBox(c)}${mark&&c.type==='redflag'?`<br><strong class="FAKE">Red flag:</strong> ${esc(c.why)}`:''}</li>`}).join('')}</ol>`;
+const playedBy=id=>{const i=Object.keys(R.plays||{}).find(k=>R.plays[k]===id);return i&&R.players[i]?pn(i):'?'}; // retrouve qui a joué la carte
+const postBox=mark=>`<ol class="post">${R.post.map(id=>{const c=cardOf(id);return `<li><strong>${playedBy(id)}</strong> · ${cardBox(c)}${mark&&c.type==='redflag'?`<br><strong class="FAKE">Red flag:</strong> ${esc(c.why)}`:''}</li>`}).join('')}</ol>`;
 function startRound(){
   const ids=Object.keys(R.players),n=R.round+1,used=R.used||[],left=HEADLINES.map((_,i)=>i).filter(i=>!used.includes(i));
   if(n>CONFIG.rounds||!left.length)return ref.update({phase:'end',endAt:firebase.database.ServerValue.TIMESTAMP});
