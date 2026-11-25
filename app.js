@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='15'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
+const VERSION='16'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -13,7 +13,7 @@ const show=h=>{app.innerHTML=h},err=m=>{const e=$('err');if(e)e.textContent=m};
 const notice=m=>{const d=document.createElement('div');d.className='box toast';d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.classList.add('out'),4500);setTimeout(()=>d.remove(),5000)};
 // ----- Animations -----
 // Les éléments de l'écran apparaissent un par un, SEULEMENT quand on change d'écran (pas à chaque mise à jour de Firebase)
-let turned=new Set(),flipNow=null,secretShown=false,secretKey=null,secretFlip=false,animKey=null,flipRole=false,popCard=null,seenPlayers=null,wasReady=null;
+let turned=new Set(),flipNow=null,swapIn=null,secretShown=false,secretKey=null,secretFlip=false,animKey=null,flipRole=false,popCard=null,seenPlayers=null,wasReady=null;
 const animate=key=>{if(key===animKey)return false;animKey=key;[...app.children].forEach((el,i)=>{el.style.animationDelay=Math.min(i*60,480)+'ms';el.classList.add('in')});return true};
 const calm=()=>matchMedia('(prefers-reduced-motion: reduce)').matches; // le téléphone demande moins d'animations
 const buzz=ms=>{try{if(!calm()&&navigator.vibrate)navigator.vibrate(ms)}catch(e){}}; // vibration (Android seulement)
@@ -193,7 +193,9 @@ function startRound(){
   const draw=(ty,not)=>{let i=P[ty].findIndex(id=>!not.includes(id));if(i<0){P[ty]=shuffle(all(ty));i=P[ty].findIndex(id=>!not.includes(id))}return P[ty].splice(i,1)[0]};
   shuffle(ids).forEach((i,j)=>roles[i]=j<t?'Troll':'Citizen');
   // Citizen : 2 vrais indices + 1 piège caché. Troll : 2 pièges + 1 vrai indice.
-  ids.forEach(i=>{const tr=roles[i]==='Troll',h=[];for(const ty of tr?['trap','trap','true']:['true','true','trap'])h.push(draw(ty,h));hands[i]=shuffle(h)});
+  // Citizen : 2 vrais indices + 1 piège. Troll : 1, 2 ou 3 pièges au hasard (1 = 35 %, 2 = 45 %, 3 = 20 %), le reste en vrais indices.
+  const trollTraps=()=>{const x=Math.random();return x<.35?1:x<.8?2:3};
+  ids.forEach(i=>{const tr=roles[i]==='Troll',h=[],n=tr?trollTraps():1;for(const ty of ['trap','trap','trap'].slice(0,n).concat(['true','true','true'].slice(0,3-n)))h.push(draw(ty,h));hands[i]=shuffle(h)});
   ids.forEach(i=>spare[i]=draw(Math.random()<.6?'true':'trap',hands[i]));
   ref.update({phase:'role',round:n,theme:k,headline:THEMES[k].claim,used:[...used,k],roles,hands,spare,plays:null,post:null,votes:null,suspects:null,french:null,verdict:null,endsAt:null});
 }
@@ -217,16 +219,18 @@ function role(){
   <p class="muted">${played?'':'Tap a card to turn it over, then tap it again to choose it.'}</p>
   <div class="hand">${hand.map(id=>turned.has(id)||id===played
     ?`<button class="card ${id===(played||sel)?'on':''} ${id===popCard?'pop':''} ${id===flipNow?'flipin':''}" data-id="${id}" ${played?'disabled':''}>${cardBox(cardOf(id))}${my==='Troll'?trollTag(cardOf(id)):''}</button>`
-    :`<button class="card facedown" data-id="${id}" ${played?'disabled':''} aria-label="Face-down card: tap to turn it over"></button>`).join('')}</div>
+    :`<button class="card facedown ${id===swapIn?'swapin':''}" data-id="${id}" ${played?'disabled':''} aria-label="Face-down card: tap to turn it over"></button>`).join('')}</div>
   ${played?'<p>Card played. Waiting for the others.</p>':`<div><button id="pl" ${sel?'':'disabled'}>Play selected card</button>${sp?`<button id="sw" class="ghost" ${sel?'':'disabled'}>Swap selected card (once)</button>`:''}</div>`}`:'<p>Make sure nobody can see your screen.</p>'}
   <p class="muted">Cards played: ${np}/${ids.length}</p>${isHost()?`<button id="go" ${np<ids.length?'disabled':''}>Reveal the clues</button>`:''}`);
-  flipRole=false;popCard=null;flipNow=null;
+  flipRole=false;popCard=null;flipNow=null;if(swapIn&&hand.includes(swapIn))swapIn=null;
   $('rv').onclick=()=>{roleShown=!roleShown;flipRole=roleShown;if(roleShown){flash();buzz(40)}render()};
   // Carte face cachée : 1er toucher = elle se retourne ; carte retournée : toucher = la choisir
   app.querySelectorAll('.card').forEach(b=>b.onclick=()=>{const id=b.dataset.id;
     if(!turned.has(id)){turned.add(id);flipNow=id;buzz(15)}else{sel=id;popCard=sel}render()});
   if($('pl'))$('pl').onclick=()=>ref.child('plays/'+pid).set(sel);
-  if($('sw'))$('sw').onclick=()=>{const u={};u['hands/'+pid]=hand.map(c=>c===sel?sp:c);u['spare/'+pid]=null;sel=null;ref.update(u)};
+  if($('sw'))$('sw').onclick=()=>{const u={},out=sel,el=app.querySelector(`.card[data-id="${out}"]`);u['hands/'+pid]=hand.map(c=>c===out?sp:c);u['spare/'+pid]=null;sel=null;
+    if(el&&!calm())el.classList.add('swapout');
+    setTimeout(()=>{swapIn=sp;ref.update(u)},calm()?0:380)};
   if(isHost())$('go').onclick=()=>ref.update({phase:'debate',post:shuffle(Object.values(R.plays)),endsAt:now()+CONFIG.debateSeconds*1000});
 }
 function debate(){

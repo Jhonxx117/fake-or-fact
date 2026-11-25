@@ -227,8 +227,8 @@ canvas.confetti{position:fixed;inset:0;z-index:40;pointer-events:none}
   .podium .p1 .bar{animation-delay:.8s}.podium .p1 .who{animation-delay:1.5s}
 }
 @keyframes cardFlip{0%{transform:perspective(700px) rotateY(180deg);background:var(--blue) url(../theme/back.png) center/cover;color:transparent}
-  49%{background:var(--blue) url(../theme/back.png) center/cover;color:transparent}50%{transform:perspective(700px) rotateY(90deg);background:var(--white);color:inherit}
-  100%{transform:none;background:var(--white)}}
+  49%{background:var(--blue) url(../theme/back.png) center/cover;color:transparent}50%{transform:perspective(700px) rotateY(90deg);background:var(--cream);color:inherit}
+  100%{transform:none;background:var(--cream)}}
 @keyframes glitch{0%{transform:translate(0);text-shadow:none}20%{transform:translate(-3px,1px) skewX(-8deg);text-shadow:3px 0 #d62828,-3px 0 var(--blue)}
   40%{transform:translate(3px,-1px) skewX(6deg);text-shadow:-3px 0 #d62828,3px 0 var(--blue)}60%{transform:translate(-2px,0);text-shadow:2px 0 #d62828}
   80%{transform:translate(2px,1px) skewX(-3deg);text-shadow:-2px 0 var(--blue)}100%{transform:none;text-shadow:none}}
@@ -274,3 +274,14 @@ canvas.confetti{position:fixed;inset:0;z-index:40;pointer-events:none}
 .hand .card.on{background:var(--yellow);outline:3px solid var(--black);transform:translateY(-8px) rotate(-1.5deg)}
 .hand .card.facedown{background:#2c4a96 url(../theme/back.png) center/cover no-repeat;min-height:0;padding:0}
 @media (max-width:360px){.hand .card,.post .pcard{width:8.6rem}}
+
+/* Pendant qu'une carte se retourne, son contenu (texte, étiquette 🚩) reste caché tant qu'on voit le dos */
+@keyframes faceIn{0%,49.9%{opacity:0}50%,100%{opacity:1}}
+@media (prefers-reduced-motion:no-preference){
+  .card.flipin>*{animation:faceIn .6s linear}
+  .post.flipcards.in li>*{animation:faceIn .7s linear backwards;animation-delay:inherit}
+  /* Échange : la carte s'en va à droite, la nouvelle arrive de la gauche */
+  .hand .card.swapout{transition:transform .38s var(--ease),opacity .38s;transform:translateX(130%) rotate(18deg);opacity:0}
+  .hand .card.swapin{animation:swapIn .5s var(--ease)}
+}
+@keyframes swapIn{from{transform:translateX(-130%) rotate(-18deg);opacity:0}to{transform:none;opacity:1}}
