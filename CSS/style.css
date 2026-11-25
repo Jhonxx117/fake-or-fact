@@ -285,3 +285,15 @@ canvas.confetti{position:fixed;inset:0;z-index:40;pointer-events:none}
   .hand .card.swapin{animation:swapIn .5s var(--ease)}
 }
 @keyframes swapIn{from{transform:translateX(-130%) rotate(-18deg);opacity:0}to{transform:none;opacity:1}}
+
+/* ===== Verdict personnel : rouge si mauvaise réponse, étiquette qui monte ===== */
+.redfx{position:fixed;inset:0;z-index:35;pointer-events:none;background:radial-gradient(ellipse at center,rgba(214,40,40,0) 40%,rgba(214,40,40,.45) 100%);animation:redPulse 1.4s ease forwards}
+@keyframes redPulse{0%{opacity:0}15%{opacity:1}35%{opacity:.5}55%{opacity:1}100%{opacity:0}}
+.popmsg{position:fixed;left:50%;top:38%;z-index:45;pointer-events:none;white-space:nowrap;font-family:var(--text);text-transform:uppercase;letter-spacing:.05em;font-size:1.8rem;
+  padding:.35rem 1rem;border:2px solid var(--black);border-radius:999px;box-shadow:0 5px 0 var(--black);transform:translate(-50%,0);animation:popUp 1.9s var(--ease) forwards}
+.popmsg.good{background:var(--yellow);color:var(--black)}
+.popmsg.bad{background:#d62828;color:var(--white)}
+.popmsg.small{font-size:1.25rem;top:50%}
+@keyframes popUp{0%{opacity:0;transform:translate(-50%,20px) scale(.6)}15%{opacity:1;transform:translate(-50%,0) scale(1.08)}25%{transform:translate(-50%,0) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-40px)}}
+@media (max-width:420px){.popmsg{font-size:1.35rem}.popmsg.small{font-size:1rem}}
+@media (prefers-reduced-motion:reduce){.popmsg{animation:none;opacity:0}}

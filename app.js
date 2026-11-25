@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='16'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
+const VERSION='17'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -28,11 +28,28 @@ function confetti(n=140){
 // Fond sombre qui s'efface (révélation du rôle)
 const flash=()=>{if(calm())return;const d=document.createElement('div');d.className='flash';document.body.appendChild(d);setTimeout(()=>d.remove(),900)};
 // Effets joués une seule fois, quand on arrive sur un écran
+// Écran rouge : mauvaise réponse (bords rouges qui pulsent + l'écran tremble + « Wrong! »)
+function redFx(){
+  if(calm())return;const d=document.createElement('div');d.className='redfx';document.body.appendChild(d);setTimeout(()=>d.remove(),1400);
+  app.classList.remove('shake');void app.offsetWidth;app.classList.add('shake');buzz([100,60,100]);
+}
+// Petite étiquette qui monte au milieu de l'écran puis disparaît (ex. « Wrong! », « 🔍 Troll found +1 »)
+function popMsg(txt,cls,delay=0){
+  setTimeout(()=>{const d=document.createElement('div');d.className='popmsg '+cls;d.textContent=txt;document.body.appendChild(d);setTimeout(()=>d.remove(),1900)},delay);
+}
+// Effets joués une seule fois, quand on arrive sur un écran
 function screenFx(){
   if(R.phase==='verdict'&&R.verdict){
-    const d=(R.verdict.pts||{})[pid],won=d&&Object.values(d).reduce((a,b)=>a+b,0)>0;
-    if(R.verdict.fake&&R.verdict.shared){app.classList.remove('shake');void app.offsetWidth;app.classList.add('shake');buzz([80,60,80])}
-    if(won)setTimeout(()=>confetti(),500);
+    const d=(R.verdict.pts||{})[pid];if(!d)return; // spectateur : rien
+    if('fooled' in d){ // Troll : content s'il a trompé quelqu'un
+      if(d.fooled>0){setTimeout(()=>confetti(),500);popMsg(`😈 Fooled you! +${d.fooled}`,'good',500)}
+      else{setTimeout(redFx,500);popMsg('Nobody was fooled…','bad',500)}
+    }else if(d.right>0){ // Citizen qui a voté juste : confettis
+      setTimeout(()=>confetti(d.found?200:140),500);popMsg(d.found?'✅ Right vote + 🔍 Troll found!':'✅ Right vote!','good',500);
+    }else{ // Citizen qui s'est trompé : rouge… mais petit bonus s'il a trouvé le Troll
+      setTimeout(redFx,500);popMsg('❌ Wrong vote!','bad',500);
+      if(d.found){popMsg('🔍 But you found the Troll! +1','good small',1600);setTimeout(()=>confetti(35),1600)}
+    }
   }
   if(R.phase==='end')setTimeout(()=>confetti(220),1200);
 }
