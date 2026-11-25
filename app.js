@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='10'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
+const VERSION='11'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -248,7 +248,8 @@ function updTimer(){
   if(ring)ring.classList.toggle('urgent',l>0&&l<=10);
   document.body.classList.toggle('edge',l>0&&l<=5);
   if(l>0&&l<=5&&l!==lastBuzz){lastBuzz=l;buzz(60)}
-  if(l<=0&&isHost())toVote();
+  // Chrono à 0 : n'importe quel joueur fait passer au vote (si l'onglet du Host est en arrière-plan, son chrono peut être ralenti par le navigateur)
+  if(l<=0)toVote();
 }
 let lastBuzz=null;
 function vote(){
