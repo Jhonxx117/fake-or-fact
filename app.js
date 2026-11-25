@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='23'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
+const VERSION='24'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -144,10 +144,13 @@ function enter(code){
 function leave(){animKey=null;seenPlayers=wasReady=null;store.del('fof');if(ref)ref.off();ref=R=null;history.replaceState(null,'',location.pathname);home()}
 
 // ----- Affichage selon la phase -----
+// Barre du haut collée en haut de l'écran quand on descend : coins carrés (sinon on voit le fond beige dans les coins arrondis)
+const stuck=()=>{const b=document.querySelector('.bar');if(b)b.classList.toggle('stuck',scrollY>0&&b.getBoundingClientRect().top<=0)};
+addEventListener('scroll',stuck,{passive:true});
 function render(){
   if(R.phase==='lobby'){seenRound=0;sel=null;autoDebate=null}
   try{(R.ver!==VERSION?outdated:({lobby,role,debate,vote,verdict,end:final})[R.phase])()}catch(e){show(`<p class="FAKE">Display error: ${esc(e.message)}</p>`)}
-  if(R.ver===VERSION)app.insertAdjacentHTML('afterbegin',topBar());
+  if(R.ver===VERSION){app.insertAdjacentHTML('afterbegin',topBar());stuck()}
   app.insertAdjacentHTML('beforeend',`<div class="foot">${isHost()?`${R.phase==='lobby'?'':'<button id="rs" class="link">Restart the game</button>'}<button id="cl" class="link">Close the room</button>`:'<button id="lv" class="link">Leave the game</button>'}</div>`);
   if(animate(R.phase+R.round))screenFx();
   if(R.phase!=='debate')document.body.classList.remove('edge');

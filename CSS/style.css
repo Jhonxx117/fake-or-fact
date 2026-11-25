@@ -582,3 +582,5 @@ button.link#tun{background:var(--white);color:var(--black);border:2px solid var(
   52%{left:82%;top:58%}60%{left:68%;top:50%}68%{left:90%;top:80%}76%{left:62%;top:72%}84%{left:44%;top:92%}92%{left:22%;top:70%}
   96%{opacity:1}100%{opacity:0;left:6%;top:86%}}
 .hero .logo img:hover{transform:none}
+/* barre du haut collée en haut (PC) : coins carrés + bord noir en haut, pour ne plus voir le fond beige dans les coins */
+@media (min-width:900px){.bar.stuck{border-radius:0;box-shadow:0 -2px 0 var(--black)}}
