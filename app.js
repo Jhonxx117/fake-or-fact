@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='17'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
+const VERSION='18'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -13,7 +13,7 @@ const show=h=>{app.innerHTML=h},err=m=>{const e=$('err');if(e)e.textContent=m};
 const notice=m=>{const d=document.createElement('div');d.className='box toast';d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.classList.add('out'),4500);setTimeout(()=>d.remove(),5000)};
 // ----- Animations -----
 // Les éléments de l'écran apparaissent un par un, SEULEMENT quand on change d'écran (pas à chaque mise à jour de Firebase)
-let turned=new Set(),flipNow=null,swapIn=null,secretShown=false,secretKey=null,secretFlip=false,animKey=null,flipRole=false,popCard=null,seenPlayers=null,wasReady=null;
+let autoDebate=null,turned=new Set(),flipNow=null,swapIn=null,secretShown=false,secretKey=null,secretFlip=false,animKey=null,flipRole=false,popCard=null,seenPlayers=null,wasReady=null;
 const animate=key=>{if(key===animKey)return false;animKey=key;[...app.children].forEach((el,i)=>{el.style.animationDelay=Math.min(i*60,480)+'ms';el.classList.add('in')});return true};
 const calm=()=>matchMedia('(prefers-reduced-motion: reduce)').matches; // le téléphone demande moins d'animations
 const buzz=ms=>{try{if(!calm()&&navigator.vibrate)navigator.vibrate(ms)}catch(e){}}; // vibration (Android seulement)
@@ -134,7 +134,7 @@ function leave(){animKey=null;seenPlayers=wasReady=null;store.del('fof');if(ref)
 
 // ----- Affichage selon la phase -----
 function render(){
-  if(R.phase==='lobby'){seenRound=0;sel=null}
+  if(R.phase==='lobby'){seenRound=0;sel=null;autoDebate=null}
   try{(R.ver!==VERSION?outdated:({lobby,role,debate,vote,verdict,end:final})[R.phase])()}catch(e){show(`<p class="FAKE">Display error: ${esc(e.message)}</p>`)}
   app.insertAdjacentHTML('beforeend',`<div class="foot">${isHost()?`${R.phase==='lobby'?'':'<button id="rs" class="ghost">Restart the game</button>'}<button id="cl" class="ghost">Close the room</button>`:'<button id="lv" class="ghost">Leave the game</button>'}</div>`);
   if(animate(R.phase+R.round))screenFx();
@@ -147,6 +147,8 @@ function render(){
   // Moins de 3 joueurs pendant une partie : le salon se ferme tout seul
   if(isHost()&&R.phase!=='lobby'&&R.phase!=='end'&&Object.keys(R.players).length<CONFIG.minPlayers){closeRoom(`${lastLeft||'A player'} left the game. Not enough players to continue.`);return}
   if(isHost()&&R.phase!==lastPhase){lastPhase=R.phase;beat()}
+  // Tout le monde a joué sa carte : le Host passe tout seul au débat (petite pause pour voir « Card played »)
+  if(isHost()&&R.phase==='role'&&ids.length&&ids.every(i=>(R.plays||{})[i])&&autoDebate!==R.round){autoDebate=R.round;setTimeout(toDebate,900)}
   if(isHost()&&R.phase==='vote'&&ids.every(voted))reveal();
 }
 function outdated(){
@@ -238,7 +240,7 @@ function role(){
     ?`<button class="card ${id===(played||sel)?'on':''} ${id===popCard?'pop':''} ${id===flipNow?'flipin':''}" data-id="${id}" ${played?'disabled':''}>${cardBox(cardOf(id))}${my==='Troll'?trollTag(cardOf(id)):''}</button>`
     :`<button class="card facedown ${id===swapIn?'swapin':''}" data-id="${id}" ${played?'disabled':''} aria-label="Face-down card: tap to turn it over"></button>`).join('')}</div>
   ${played?'<p>Card played. Waiting for the others.</p>':`<div><button id="pl" ${sel?'':'disabled'}>Play selected card</button>${sp?`<button id="sw" class="ghost" ${sel?'':'disabled'}>Swap selected card (once)</button>`:''}</div>`}`:'<p>Make sure nobody can see your screen.</p>'}
-  <p class="muted">Cards played: ${np}/${ids.length}</p>${isHost()?`<button id="go" ${np<ids.length?'disabled':''}>Reveal the clues</button>`:''}`);
+  <p class="muted">Cards played: ${np}/${ids.length}. The clues appear when everyone has played.</p>`);
   flipRole=false;popCard=null;flipNow=null;if(swapIn&&hand.includes(swapIn))swapIn=null;
   $('rv').onclick=()=>{roleShown=!roleShown;flipRole=roleShown;if(roleShown){flash();buzz(40)}render()};
   // Carte face cachée : 1er toucher = elle se retourne ; carte retournée : toucher = la choisir
@@ -248,7 +250,7 @@ function role(){
   if($('sw'))$('sw').onclick=()=>{const u={},out=sel,el=app.querySelector(`.card[data-id="${out}"]`);u['hands/'+pid]=hand.map(c=>c===out?sp:c);u['spare/'+pid]=null;sel=null;
     if(el&&!calm())el.classList.add('swapout');
     setTimeout(()=>{swapIn=sp;ref.update(u)},calm()?0:380)};
-  if(isHost())$('go').onclick=()=>ref.update({phase:'debate',post:shuffle(Object.values(R.plays)),endsAt:now()+CONFIG.debateSeconds*1000});
+
 }
 function debate(){
   show(`<h2>Debate (English only)</h2><div class="tring"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="bg" cx="60" cy="60" r="54"/><circle class="fg" id="tr" cx="60" cy="60" r="54"/></svg><div class="timer" id="t">--</div></div>${newsBox()}${postBox(false).replace('class="post"','class="post flipcards"')}
@@ -268,6 +270,8 @@ function secretHtml(){
   secretFlip=false;return h;
 }
 const bindSecret=()=>{if($('sc'))$('sc').onclick=()=>{secretShown=!secretShown;secretFlip=secretShown;render()}};
+// Passage au débat : les cartes jouées sont mélangées et le chrono démarre
+const toDebate=()=>{if(R&&R.phase==='role')ref.update({phase:'debate',post:shuffle(Object.values(R.plays||{})),endsAt:now()+CONFIG.debateSeconds*1000})};
 const toVote=()=>{if(R&&R.phase==='debate')ref.update({phase:'vote'})};
 function updTimer(){
   const t=$('t');if(!t||!R||R.phase!=='debate')return;
