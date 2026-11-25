@@ -235,3 +235,7 @@ canvas.confetti{position:fixed;inset:0;z-index:40;pointer-events:none}
 @keyframes halo{0%,100%{box-shadow:0 0 0 0 rgba(255,233,37,0)}50%{box-shadow:0 0 0 10px rgba(255,233,37,.7)}}
 @keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-8px) rotate(-.5deg)}40%,60%{transform:translateX(8px) rotate(.5deg)}}
 @keyframes grow{from{transform:scaleY(0)}}
+
+/* ===== Thèmes ===== */
+.theme-name{margin:.2rem 0 -.6rem;font-family:var(--text);text-transform:uppercase;letter-spacing:.08em;font-size:1.3rem;color:var(--blue)}
+.tag.ok{background:var(--blue);color:var(--white)}

@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='9'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
+const VERSION='10'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -49,15 +49,15 @@ function howTo(){
   d.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="How to play">
   <button class="close ghost" aria-label="Close">✕</button>
   <h1>How to play</h1>
-  <p class="big">Build a post together.<br>Is it <span class="FACT">TRUE</span> or a <span class="FAKE">TRAP</span>?</p>
+  <p class="big">Each round, a news story about the internet.<br>Is it <span class="FACT">TRUE</span> or <span class="FAKE">FAKE</span>?</p>
   <h2>Who are you? 🤫</h2>
   <ul class="steps"><li>😇 <strong>Citizen:</strong> find the truth and find the Troll.</li>
   <li>😈 <strong>Troll:</strong> make the others vote wrong.</li></ul>
-  <h2>The golden rule 🚩</h2>
-  <p><strong>1 red flag</strong> in the post = <span class="FAKE">FAKE</span>.<br>No red flag = <span class="FACT">FACT</span>.</p>
+  <h2>Your clues 🃏</h2>
+  <p>Each card is a clue. ✅ Most clues tell the truth.<br>🚩 Some clues are <strong>traps</strong>: they lie to fool you!</p>
   <h2>Each round</h2>
-  <ol class="steps"><li>📰 Read the news.</li><li>🃏 Look at your 5 cards. Play 1.</li><li>🗣️ Talk for 90 seconds. <strong>English only!</strong></li>
-  <li>🗳️ Vote <strong>SHARE</strong> or <strong>REPORT</strong>, and pick the Troll.</li><li>⚖️ See the answer and your points.</li></ol>
+  <ol class="steps"><li>📰 Read the news.</li><li>🃏 Look at your 3 clues. Play 1.</li><li>🗣️ Talk for 90 seconds. <strong>English only!</strong></li>
+  <li>🗳️ True? Vote <strong>SHARE</strong>. Fake? Vote <strong>REPORT</strong>. And pick the Troll.</li><li>⚖️ See the answer and your points.</li></ol>
   <h2>Points ⭐</h2>
   <ul class="steps"><li>✅ Good vote: <strong>+2</strong></li><li>🔍 You found the Troll: <strong>+1</strong></li>
   <li>😈 Troll: <strong>+1</strong> for each player who votes wrong</li><li>🇫🇷 A French word: <strong>−1</strong></li></ul>
@@ -159,7 +159,7 @@ async function cleanup(){
   }catch(e){}
 }
 function restart(){
-  const u={phase:'lobby',round:0,used:null,missed:null,roles:null,hands:null,spare:null,plays:null,post:null,votes:null,suspects:null,french:null,verdict:null,endsAt:null,endAt:null};
+  const u={phase:'lobby',round:0,theme:null,used:null,missed:null,roles:null,hands:null,spare:null,plays:null,post:null,votes:null,suspects:null,french:null,verdict:null,endsAt:null,endAt:null};
   Object.keys(R.players).forEach(i=>u[`players/${i}/score`]=0);done=0;ref.update(u);
 }
 function lobby(){
@@ -176,38 +176,44 @@ function lobby(){
 }
 const voted=i=>(R.votes||{})[i]&&(R.suspects||{})[i]; // vote complet = SHARE/REPORT + suspect
 const cardOf=id=>CARDS.find(c=>c.id===id);
+const theme=()=>THEMES[R.theme]; // thème de la manche
 const cardBox=c=>`<span class="muted">${c.category}</span><br>${esc(c.text)}`;
+const newsBox=()=>`<p class="theme-name">${theme()?esc(theme().name):''}</p><div class="box headline">${esc(R.headline)}</div>`;
 const playedBy=id=>{const i=Object.keys(R.plays||{}).find(k=>R.plays[k]===id);return i&&R.players[i]?pn(i):'?'}; // retrouve qui a joué la carte
-const postBox=mark=>`<ol class="post">${R.post.map(id=>{const c=cardOf(id);return `<li><strong>${playedBy(id)}</strong> · ${cardBox(c)}${mark&&c.type==='redflag'?`<br><strong class="FAKE">Red flag:</strong> ${esc(c.why)}`:''}</li>`}).join('')}</ol>`;
+const postBox=mark=>`<ol class="post">${R.post.map(id=>{const c=cardOf(id);return `<li><strong>${playedBy(id)}</strong> · ${cardBox(c)}${mark?(c.type==='trap'?`<br><span class="tag flag">🚩 Trap</span> ${esc(c.why)}`:'<br><span class="tag ok">✅ True clue</span>'):''}</li>`}).join('')}</ol>`;
 function startRound(){
-  const ids=Object.keys(R.players),n=R.round+1,used=R.used||[],left=HEADLINES.map((_,i)=>i).filter(i=>!used.includes(i));
+  const ids=Object.keys(R.players),n=R.round+1,used=R.used||[],left=THEMES.map((_,i)=>i).filter(i=>!used.includes(i));
   if(n>CONFIG.rounds||!left.length)return ref.update({phase:'end',endAt:firebase.database.ServerValue.TIMESTAMP});
   const k=left[Math.random()*left.length|0],max=ids.length>=5?CONFIG.maxTrolls:1,t=1+Math.floor(Math.random()*max),roles={},hands={},spare={};
-  const pool=ty=>shuffle(CARDS.filter(c=>c.type===ty).map(c=>c.id)),F=pool('redflag'),Rl=pool('reliable'),N=pool('neutral');
+  // Pioches du thème : vrais indices et pièges. Si une pioche est vide (5-6 joueurs), on la remélange (une même carte peut alors être chez 2 joueurs).
+  const all=ty=>CARDS.filter(c=>c.theme===k&&c.type===ty).map(c=>c.id),P={true:shuffle(all('true')),trap:shuffle(all('trap'))};
+  const draw=(ty,not)=>{let i=P[ty].findIndex(id=>!not.includes(id));if(i<0){P[ty]=shuffle(all(ty));i=P[ty].findIndex(id=>!not.includes(id))}return P[ty].splice(i,1)[0]};
   shuffle(ids).forEach((i,j)=>roles[i]=j<t?'Troll':'Citizen');
-  ids.forEach(i=>{const tr=roles[i]==='Troll';hands[i]=shuffle([...F.splice(0,tr?3:1),...Rl.splice(0,tr?1:3),...N.splice(0,1)])});
-  const rest=shuffle([...F,...Rl,...N]);ids.forEach(i=>spare[i]=rest.pop());
-  ref.update({phase:'role',round:n,headline:HEADLINES[k],used:[...used,k],roles,hands,spare,plays:null,post:null,votes:null,suspects:null,french:null,verdict:null,endsAt:null});
+  // Citizen : 2 vrais indices + 1 piège caché. Troll : 2 pièges + 1 vrai indice.
+  ids.forEach(i=>{const tr=roles[i]==='Troll',h=[];for(const ty of tr?['trap','trap','true']:['true','true','trap'])h.push(draw(ty,h));hands[i]=shuffle(h)});
+  ids.forEach(i=>spare[i]=draw(Math.random()<.6?'true':'trap',hands[i]));
+  ref.update({phase:'role',round:n,theme:k,headline:THEMES[k].claim,used:[...used,k],roles,hands,spare,plays:null,post:null,votes:null,suspects:null,french:null,verdict:null,endsAt:null});
 }
-// Seul le Troll voit sur SON téléphone quelles cartes de sa main sont des red flags
-const trollTag=c=>c.type==='redflag'?'<br><span class="tag flag">🚩 Red flag</span>':'<br><span class="tag safe">Not a red flag</span>';
+// Seul le Troll voit sur SON téléphone quels indices de sa main sont des pièges
+const trollTag=c=>c.type==='trap'?'<br><span class="tag flag">🚩 Trap</span>':'<br><span class="tag safe">True clue</span>';
 // Troll : état du post EN DIRECT pendant le choix des cartes (d'après les cartes déjà jouées)
+// Troll : il connaît la vraie réponse dès le début de la manche
+const isFake=()=>theme()&&theme().answer==='FAKE';
 function trollLive(){
-  const pl=Object.values(R.plays||{}),n=act().length,fake=pl.some(id=>cardOf(id).type==='redflag');
-  if(!pl.length)return `<div class="box"><p><strong>Troll secret:</strong> no card has been played yet. Wait: here you will see if the post is FAKE or FACT, card after card.</p></div>`;
-  return `<div class="box"><p><strong>Troll secret:</strong> with the ${pl.length}/${n} cards played so far, the post is <span class="${fake?'FAKE':'FACT'}">${fake?'FAKE':'FACT'}</span>.</p><p class="muted">${fake?'There is already a red flag in it: you can play a good card to hide.':'No red flag yet: play one of your 🚩 cards to make it FAKE, or keep it a FACT and make the Citizens REPORT it.'}</p></div>`;
+  const f=isFake();
+  return `<div class="box"><p><strong>Troll secret:</strong> this news is <span class="${f?'FAKE':'FACT'}">${f?'FAKE':'TRUE'}</span>.</p><p class="muted">Make the Citizens believe it is ${f?'TRUE (so they SHARE it)':'FAKE (so they REPORT it)'}. Your traps 🚩 can help you.</p></div>`;
 }
 function role(){
   if(R.round!==seenRound){seenRound=R.round;roleShown=false;sel=null}
-  if(!R.roles||!R.roles[pid]){show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><div class="box headline">${esc(R.headline)}</div><p>A round is already in progress. You will play from the next round.</p>`);return}
+  if(!R.roles||!R.roles[pid]){show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p>${newsBox()}<p>A round is already in progress. You will play from the next round.</p>`);return}
   const my=R.roles[pid],hand=(R.hands||{})[pid]||[],played=(R.plays||{})[pid],ids=act(),np=ids.filter(i=>(R.plays||{})[i]).length,sp=(R.spare||{})[pid];
-  const goal=my==='Troll'?'Make the Citizens get it wrong. Convince them to SHARE a fake post or to REPORT a reliable one. You score 1 point for each Citizen who votes wrong, and nothing for your own vote. Your red flags are marked 🚩 below, and you can see live if the post is FAKE or FACT.':'Build a reliable post. Read each card, play the one you trust, and find the Troll.';
-  show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><h2>Breaking news</h2><div class="box headline">${esc(R.headline)}</div>
+  const goal=my==='Troll'?'You know the truth. Make the Citizens vote wrong! You score 1 point for each Citizen who votes wrong, and nothing for your own vote. Your traps are marked 🚩 below.':'Is this news true or fake? Read your clues: one of them is a trap! Play the clue you trust, and find the Troll.';
+  show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><h2>Breaking news</h2>${newsBox()}
   <button id="rv" class="ghost">${roleShown?'Hide my role and cards':'Show my role and cards'}</button>
-  ${roleShown?`<div class="box rolebox ${my==='Troll'?'troll':'citizen'}${flipRole?' flip reveal':''}"><p class="youare">You are…</p><div class="headline rolename ${my==='Troll'?'FAKE':'FACT'}" data-text="${my}">${my} ${my==='Troll'?'😈':'😇'}</div><p>${goal}</p></div>${my==='Troll'?trollLive():''}<h2>Your cards</h2>
+  ${roleShown?`<div class="box rolebox ${my==='Troll'?'troll':'citizen'}${flipRole?' flip reveal':''}"><p class="youare">You are…</p><div class="headline rolename ${my==='Troll'?'FAKE':'FACT'}" data-text="${my}">${my} ${my==='Troll'?'😈':'😇'}</div><p>${goal}</p></div>${my==='Troll'?trollLive():''}<h2>Your clues</h2>
   ${hand.map(id=>`<button class="card ${id===(played||sel)?'on':''} ${id===popCard?'pop':''}" data-id="${id}" ${played?'disabled':''}>${cardBox(cardOf(id))}${my==='Troll'?trollTag(cardOf(id)):''}</button>`).join('')}
   ${played?'<p>Card played. Waiting for the others.</p>':`<div><button id="pl" ${sel?'':'disabled'}>Play selected card</button>${sp?`<button id="sw" class="ghost" ${sel?'':'disabled'}>Swap selected card (once)</button>`:''}</div>`}`:'<p>Make sure nobody can see your screen.</p>'}
-  <p class="muted">Cards played: ${np}/${ids.length}</p>${isHost()?`<button id="go" ${np<ids.length?'disabled':''}>Reveal the post</button>`:''}`);
+  <p class="muted">Cards played: ${np}/${ids.length}</p>${isHost()?`<button id="go" ${np<ids.length?'disabled':''}>Reveal the clues</button>`:''}`);
   flipRole=false;popCard=null;
   $('rv').onclick=()=>{roleShown=!roleShown;flipRole=roleShown;if(roleShown){flash();buzz(40)}render()};
   app.querySelectorAll('.card').forEach(b=>b.onclick=()=>{sel=b.dataset.id;popCard=sel;render()});
@@ -216,8 +222,8 @@ function role(){
   if(isHost())$('go').onclick=()=>ref.update({phase:'debate',post:shuffle(Object.values(R.plays)),endsAt:now()+CONFIG.debateSeconds*1000});
 }
 function debate(){
-  show(`<h2>Debate (English only)</h2><div class="tring"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="bg" cx="60" cy="60" r="54"/><circle class="fg" id="tr" cx="60" cy="60" r="54"/></svg><div class="timer" id="t">--</div></div><div class="box headline">${esc(R.headline)}</div>${postBox(false).replace('class="post"','class="post flipcards"')}
-  <p>Is the post reliable? Who is the Troll? Every French word costs 1 point.</p>${secretHtml()}${isHost()?'<div><button id="go" class="ghost">Go to vote now</button></div>':''}`);
+  show(`<h2>Debate (English only)</h2><div class="tring"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="bg" cx="60" cy="60" r="54"/><circle class="fg" id="tr" cx="60" cy="60" r="54"/></svg><div class="timer" id="t">--</div></div>${newsBox()}${postBox(false).replace('class="post"','class="post flipcards"')}
+  <p>Is this news true or fake? Which clue is a trap? Who is the Troll? Every French word costs 1 point.</p>${secretHtml()}${isHost()?'<div><button id="go" class="ghost">Go to vote now</button></div>':''}`);
   bindSecret();if(isHost())$('go').onclick=toVote;updTimer();
 }
 // ----- Info secrète (débat + vote) -----
@@ -226,9 +232,9 @@ function debate(){
 function secretHtml(){
   const k=R.phase+R.round;if(k!==secretKey){secretKey=k;secretShown=false}
   if(!R.roles||!R.roles[pid])return '';
-  const troll=R.roles[pid]==='Troll',fake=R.post.some(id=>cardOf(id).type==='redflag');
-  const info=troll?`<p><strong>Troll secret:</strong> this post is <span class="${fake?'FAKE':'FACT'}">${fake?'FAKE':'FACT'}</span>.</p><p>${fake?'There is a red flag in it. Convince the Citizens to SHARE it.':'There is no red flag in it. Convince the Citizens to REPORT it.'}</p>`
-    :'<p>You are a Citizen: no secret info for you. Read the cards and trust your eyes!</p>';
+  const troll=R.roles[pid]==='Troll',fake=isFake();
+  const info=troll?`<p><strong>Troll secret:</strong> this news is <span class="${fake?'FAKE':'FACT'}">${fake?'FAKE':'TRUE'}</span>.</p><p>${fake?'Convince the Citizens it is TRUE, so they SHARE it.':'Convince the Citizens it is FAKE, so they REPORT it.'}</p>`
+    :'<p>You are a Citizen: no secret info for you. Read the clues and trust your brain!</p>';
   const h=`<button id="sc" class="secret">${secretShown?'Hide my secret info':'🤫 Show my secret info'}</button>${secretShown?`<div class="box${secretFlip?' flip':''}">${info}</div>`:''}`;
   secretFlip=false;return h;
 }
@@ -247,7 +253,7 @@ function updTimer(){
 let lastBuzz=null;
 function vote(){
   const ids=act(),v=R.votes||{},mine=v[pid],sus=(R.suspects||{})[pid];
-  show(`<h2>Vote</h2><div class="box headline">${esc(R.headline)}</div>${postBox(false)}${secretHtml()}${R.roles[pid]?`<p>1. Is this post reliable enough to share?</p>
+  show(`<h2>Vote</h2>${newsBox()}${postBox(false)}${secretHtml()}${R.roles[pid]?`<p>1. Is this news true? <strong>SHARE</strong> = true · <strong>REPORT</strong> = fake</p>
   <button id="s" class="${mine==='SHARE'?'':'ghost'}">SHARE</button><button id="r" class="${mine==='REPORT'?'':'ghost'}">REPORT</button>
   <p>2. Who is the Troll?</p><div>${ids.filter(i=>i!==pid).map(i=>`<button class="${sus===i?'':'ghost'}" data-sus="${i}">${pn(i)}</button>`).join('')}</div>
   ${mine&&sus?'<p class="muted">Vote saved. You can still change it.</p>':'<p class="muted">Choose both to validate your vote.</p>'}`:'<p>You will play from the next round.</p>'}
@@ -259,7 +265,7 @@ function vote(){
 }
 function reveal(){
   if(done===R.round)return;done=R.round;
-  const flags=R.post.filter(id=>cardOf(id).type==='redflag'),fake=flags.length>0,votes=R.votes||{},ids=act();
+  const fake=isFake(),votes=R.votes||{},ids=act();
   const shared=ids.filter(i=>votes[i]==='SHARE').length>ids.length/2,good=fake?'REPORT':'SHARE',upd={};
   const sus=R.suspects||{},isTroll=i=>R.roles[i]==='Troll';
   const fooled=ids.filter(i=>!isTroll(i)&&votes[i]!==good).length; // Citizens qui se sont trompés (ou n'ont pas voté)
@@ -270,13 +276,14 @@ function reveal(){
         found:sus[i]&&isTroll(sus[i])?CONFIG.pointsTrollFound:0}; // Troll found
     pts[i]=d;upd[`players/${i}/score`]=R.players[i].score+Object.values(d).reduce((a,b)=>a+b,0)});
   upd.phase='verdict';upd.verdict={fake,shared,pts};
-  if(fake&&shared)upd.missed=[...(R.missed||[]),...flags];
+  if(shared===fake)upd.missed=[...(R.missed||[]),R.theme]; // la table s'est trompée : on garde le thème pour la fin
   ref.update(upd);
 }
 function verdict(){
   const V=R.verdict,ids=Object.keys(R.players),tr=ids.filter(i=>R.roles[i]==='Troll');
-  show(`<div class="verdict ${V.fake?'FAKE':'FACT'}">${V.fake?'FAKE':'FACT'}</div><p>${V.shared?'The table shared the post.':'The table reported the post.'}</p>
-  <h2>The post</h2>${postBox(true)}
+  show(`<div class="verdict ${V.fake?'FAKE':'FACT'}">${V.fake?'FAKE':'FACT'}</div><p>${V.shared?'The table SHARED it.':'The table REPORTED it.'} ${V.shared!==V.fake?'✅ Good call!':'❌ Wrong call!'}</p>
+  ${newsBox()}<div class="box"><p><strong>The truth:</strong> ${theme()?esc(theme().why):''}</p></div>
+  <h2>The clues</h2>${postBox(true)}
   <h2>Trolls</h2><p>${tr.length?tr.map(i=>pn(i)).join(', '):'There was no Troll this round.'}</p>
   <h2>Points this round</h2>${roundPts()}<h2>Scores</h2>${scores()}
   ${isHost()?`<p class="muted">Lost in translation: tap a name for each French word.</p>${ids.map(i=>`<button class="ghost" data-i="${i}">${pn(i)} −${CONFIG.frenchPenalty}</button>`).join('')}<div><button id="nx">${R.round>=CONFIG.rounds?'See final scores':'Next round'}</button></div>`:'<p class="muted">Waiting for the host.</p>'}`);
@@ -305,9 +312,9 @@ function podium(){
   ${ids.length>3?`<ul>${ids.slice(3).map((i,k)=>`<li>${k+4}. ${pn(i)}: ${R.players[i].score}</li>`).join('')}</ul>`:''}`;
 }
 function final(){
-  const miss=[...new Set(R.missed||[])].map(cardOf).filter(Boolean);
+  const miss=[...new Set(R.missed||[])].map(i=>THEMES[i]).filter(Boolean);
   show(`<h1>Final scores</h1>${podium()}
-  ${miss.length?`<h2>Red flags the table missed</h2><ul>${miss.map(c=>`<li><strong>${esc(c.text)}</strong><br>${esc(c.why)}</li>`).join('')}</ul>`:'<p>No red flag slipped through. Well done.</p>'}
+  ${miss.length?`<h2>What the table got wrong</h2><ul>${miss.map(t=>`<li><strong>${esc(t.claim)}</strong> <span class="${t.answer==='FAKE'?'FAKE':'FACT'}">${t.answer==='FAKE'?'FAKE':'TRUE'}</span><br>${esc(t.why)}</li>`).join('')}</ul>`:'<p>The table got every news right. Well done!</p>'}
 `);
 }
 
