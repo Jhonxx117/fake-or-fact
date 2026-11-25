@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='13'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
+const VERSION='15'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -13,7 +13,7 @@ const show=h=>{app.innerHTML=h},err=m=>{const e=$('err');if(e)e.textContent=m};
 const notice=m=>{const d=document.createElement('div');d.className='box toast';d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.classList.add('out'),4500);setTimeout(()=>d.remove(),5000)};
 // ----- Animations -----
 // Les éléments de l'écran apparaissent un par un, SEULEMENT quand on change d'écran (pas à chaque mise à jour de Firebase)
-let secretShown=false,secretKey=null,secretFlip=false,animKey=null,flipRole=false,popCard=null,seenPlayers=null,wasReady=null;
+let turned=new Set(),flipNow=null,secretShown=false,secretKey=null,secretFlip=false,animKey=null,flipRole=false,popCard=null,seenPlayers=null,wasReady=null;
 const animate=key=>{if(key===animKey)return false;animKey=key;[...app.children].forEach((el,i)=>{el.style.animationDelay=Math.min(i*60,480)+'ms';el.classList.add('in')});return true};
 const calm=()=>matchMedia('(prefers-reduced-motion: reduce)').matches; // le téléphone demande moins d'animations
 const buzz=ms=>{try{if(!calm()&&navigator.vibrate)navigator.vibrate(ms)}catch(e){}}; // vibration (Android seulement)
@@ -177,13 +177,13 @@ function lobby(){
 const voted=i=>(R.votes||{})[i]&&(R.suspects||{})[i]; // vote complet = SHARE/REPORT + suspect
 const cardOf=id=>CARDS.find(c=>c.id===id);
 const theme=()=>THEMES[R.theme]; // thème de la manche
-const cardBox=c=>`<span class="muted">${c.category}</span><br>${esc(c.text)}`;
+const cardBox=c=>`<span class="cat">${c.category}</span><span class="txt">${esc(c.text)}</span>`; // contenu d'une carte (format portrait, voir .card dans le CSS)
 // Carte illustrée du thème : dossier theme/ à la racine (theme01.png … theme15.png dans l'ordre de THEMES, dos = back.png).
 // Elle arrive de dos puis se retourne (voir .tcard dans le CSS).
 const themeCard=()=>theme()?`<div class="tcard"><div class="inner"><img class="front" src="theme/theme${String(R.theme+1).padStart(2,'0')}.png" alt="${esc(theme().name)} card"><img class="back" src="theme/back.png" alt=""></div></div>`:'';
 const newsBox=()=>`<p class="theme-name">${theme()?esc(theme().name):''}</p><div class="box headline">${esc(R.headline)}</div>`;
 const playedBy=id=>{const i=Object.keys(R.plays||{}).find(k=>R.plays[k]===id);return i&&R.players[i]?pn(i):'?'}; // retrouve qui a joué la carte
-const postBox=mark=>`<ol class="post">${R.post.map(id=>{const c=cardOf(id);return `<li><strong>${playedBy(id)}</strong> · ${cardBox(c)}${mark?(c.type==='trap'?`<br><span class="tag flag">🚩 Trap</span> ${esc(c.why)}`:'<br><span class="tag ok">✅ True clue</span>'):''}</li>`}).join('')}</ol>`;
+const postBox=mark=>`<ol class="post">${R.post.map(id=>{const c=cardOf(id);return `<li class="pcard"><span class="who">${playedBy(id)}</span>${cardBox(c)}${mark?(c.type==='trap'?`<span class="tag flag">🚩 Trap</span><span class="why">${esc(c.why)}</span>`:'<span class="tag ok">✅ True clue</span>'):''}</li>`}).join('')}</ol>`;
 function startRound(){
   const ids=Object.keys(R.players),n=R.round+1,used=R.used||[],left=THEMES.map((_,i)=>i).filter(i=>!used.includes(i));
   if(n>CONFIG.rounds||!left.length)return ref.update({phase:'end',endAt:firebase.database.ServerValue.TIMESTAMP});
@@ -198,7 +198,7 @@ function startRound(){
   ref.update({phase:'role',round:n,theme:k,headline:THEMES[k].claim,used:[...used,k],roles,hands,spare,plays:null,post:null,votes:null,suspects:null,french:null,verdict:null,endsAt:null});
 }
 // Seul le Troll voit sur SON téléphone quels indices de sa main sont des pièges
-const trollTag=c=>c.type==='trap'?'<br><span class="tag flag">🚩 Trap</span>':'<br><span class="tag safe">True clue</span>';
+const trollTag=c=>c.type==='trap'?'<span class="tag flag">🚩 Trap</span>':'<span class="tag safe">True clue</span>';
 // Troll : état du post EN DIRECT pendant le choix des cartes (d'après les cartes déjà jouées)
 // Troll : il connaît la vraie réponse dès le début de la manche
 const isFake=()=>theme()&&theme().answer==='FAKE';
@@ -207,19 +207,24 @@ function trollLive(){
   return `<div class="box"><p><strong>Troll secret:</strong> this news is <span class="${f?'FAKE':'FACT'}">${f?'FAKE':'TRUE'}</span>.</p><p class="muted">Make the Citizens believe it is ${f?'TRUE (so they SHARE it)':'FAKE (so they REPORT it)'}. Your traps 🚩 can help you.</p></div>`;
 }
 function role(){
-  if(R.round!==seenRound){seenRound=R.round;roleShown=false;sel=null}
+  if(R.round!==seenRound){seenRound=R.round;roleShown=false;sel=null;turned=new Set()}
   if(!R.roles||!R.roles[pid]){show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p>${newsBox()}<p>A round is already in progress. You will play from the next round.</p>`);return}
   const my=R.roles[pid],hand=(R.hands||{})[pid]||[],played=(R.plays||{})[pid],ids=act(),np=ids.filter(i=>(R.plays||{})[i]).length,sp=(R.spare||{})[pid];
   const goal=my==='Troll'?'You know the truth. Make the Citizens vote wrong! You score 1 point for each Citizen who votes wrong, and nothing for your own vote. Your traps are marked 🚩 below.':'Is this news true or fake? Read your clues: one of them is a trap! Play the clue you trust, and find the Troll.';
   show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><h2>Breaking news</h2>${themeCard()}${newsBox()}
   <button id="rv" class="ghost">${roleShown?'Hide my role and cards':'Show my role and cards'}</button>
   ${roleShown?`<div class="box rolebox ${my==='Troll'?'troll':'citizen'}${flipRole?' flip reveal':''}"><p class="youare">You are…</p><div class="headline rolename ${my==='Troll'?'FAKE':'FACT'}" data-text="${my}">${my} ${my==='Troll'?'😈':'😇'}</div><p>${goal}</p></div>${my==='Troll'?trollLive():''}<h2>Your clues</h2>
-  ${hand.map(id=>`<button class="card ${id===(played||sel)?'on':''} ${id===popCard?'pop':''}" data-id="${id}" ${played?'disabled':''}>${cardBox(cardOf(id))}${my==='Troll'?trollTag(cardOf(id)):''}</button>`).join('')}
+  <p class="muted">${played?'':'Tap a card to turn it over, then tap it again to choose it.'}</p>
+  <div class="hand">${hand.map(id=>turned.has(id)||id===played
+    ?`<button class="card ${id===(played||sel)?'on':''} ${id===popCard?'pop':''} ${id===flipNow?'flipin':''}" data-id="${id}" ${played?'disabled':''}>${cardBox(cardOf(id))}${my==='Troll'?trollTag(cardOf(id)):''}</button>`
+    :`<button class="card facedown" data-id="${id}" ${played?'disabled':''} aria-label="Face-down card: tap to turn it over"></button>`).join('')}</div>
   ${played?'<p>Card played. Waiting for the others.</p>':`<div><button id="pl" ${sel?'':'disabled'}>Play selected card</button>${sp?`<button id="sw" class="ghost" ${sel?'':'disabled'}>Swap selected card (once)</button>`:''}</div>`}`:'<p>Make sure nobody can see your screen.</p>'}
   <p class="muted">Cards played: ${np}/${ids.length}</p>${isHost()?`<button id="go" ${np<ids.length?'disabled':''}>Reveal the clues</button>`:''}`);
-  flipRole=false;popCard=null;
+  flipRole=false;popCard=null;flipNow=null;
   $('rv').onclick=()=>{roleShown=!roleShown;flipRole=roleShown;if(roleShown){flash();buzz(40)}render()};
-  app.querySelectorAll('.card').forEach(b=>b.onclick=()=>{sel=b.dataset.id;popCard=sel;render()});
+  // Carte face cachée : 1er toucher = elle se retourne ; carte retournée : toucher = la choisir
+  app.querySelectorAll('.card').forEach(b=>b.onclick=()=>{const id=b.dataset.id;
+    if(!turned.has(id)){turned.add(id);flipNow=id;buzz(15)}else{sel=id;popCard=sel}render()});
   if($('pl'))$('pl').onclick=()=>ref.child('plays/'+pid).set(sel);
   if($('sw'))$('sw').onclick=()=>{const u={};u['hands/'+pid]=hand.map(c=>c===sel?sp:c);u['spare/'+pid]=null;sel=null;ref.update(u)};
   if(isHost())$('go').onclick=()=>ref.update({phase:'debate',post:shuffle(Object.values(R.plays)),endsAt:now()+CONFIG.debateSeconds*1000});
