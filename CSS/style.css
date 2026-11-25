@@ -165,8 +165,10 @@ main{position:relative;z-index:1}
 
 /* --- Triangle bleu en haut à gauche : dessiné dans le fond de la page (comme le jaune), donc visible tout de suite, sans animation --- */
 @media (min-width:900px){
-  body{background:linear-gradient(to bottom right,var(--blue) 50%,transparent 50%) 0 0/24vw 32vh no-repeat fixed,
+  /* fond mis sur html (pas body) + body en flow-root : la marge de la feuille ne décale plus le triangle (bande beige en haut) */
+  html{background:linear-gradient(to bottom right,var(--blue) 50%,transparent 50%) 0 0/24vw 32vh no-repeat fixed,
     linear-gradient(135deg,transparent 78%,var(--yellow) 78%) fixed,var(--cream)}
+  body{background:transparent;display:flow-root}
 }
 
 /* --- Fond sombre qui s'efface (révélation du rôle) --- */
@@ -307,8 +309,10 @@ canvas.confetti{position:fixed;inset:0;z-index:40;pointer-events:none}
 body{background:var(--cream)}
 main{padding-top:0}
 @media (min-width:900px){
-  body{background:linear-gradient(to bottom right,var(--blue) 50%,transparent 50%) 0 0/24vw 32vh no-repeat fixed,
+  /* fond mis sur html (pas body) + body en flow-root : la marge de la feuille ne décale plus le triangle (bande beige en haut) */
+  html{background:linear-gradient(to bottom right,var(--blue) 50%,transparent 50%) 0 0/24vw 32vh no-repeat fixed,
     linear-gradient(135deg,transparent 78%,var(--yellow) 78%) fixed,var(--cream)}
+  body{background:transparent;display:flow-root}
   main{background:var(--cream);border:2px solid var(--black);border-radius:18px;box-shadow:0 8px 0 var(--black);margin:2rem auto 3rem;padding:0 1.6rem 1.6rem;max-width:36rem}
 }
 

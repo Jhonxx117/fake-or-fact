@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='21'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
+const VERSION='22'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -214,7 +214,7 @@ const cardBox=c=>`<span class="cat">${c.category}</span><span class="txt">${esc(
 const themeCard=()=>theme()?`<div class="tcard"><div class="inner"><img class="front" src="theme/theme${String(R.theme+1).padStart(2,'0')}.png" alt="${esc(theme().name)} card"><img class="back" src="theme/back.png" alt=""></div></div>`:'';
 const newsBox=()=>`<p class="theme-name">${theme()?esc(theme().name):''}</p><div class="box headline">${esc(R.headline)}</div>`;
 const playedBy=id=>{const i=Object.keys(R.plays||{}).find(k=>R.plays[k]===id);return i&&R.players[i]?pn(i):'?'}; // retrouve qui a joué la carte
-const postBox=mark=>`<ol class="post">${R.post.map(id=>{const c=cardOf(id);return `<li class="pcard"><span class="who">${playedBy(id)}</span>${cardBox(c)}${mark?(c.type==='trap'?`<span class="tag flag">🚩 Trap</span><span class="why">${esc(c.why)}</span>`:'<span class="tag ok">✅ True clue</span>'):''}</li>`}).join('')}</ol>`;
+const postBox=mark=>`<ol class="post">${R.post.filter(id=>{const k=Object.keys(R.plays||{}).find(k=>R.plays[k]===id);return k&&R.players&&R.players[k]}).map(id=>{const c=cardOf(id);return `<li class="pcard"><span class="who">${playedBy(id)}</span>${cardBox(c)}${mark?(c.type==='trap'?`<span class="tag flag">🚩 Trap</span><span class="why">${esc(c.why)}</span>`:'<span class="tag ok">✅ True clue</span>'):''}</li>`}).join('')}</ol>`;
 function startRound(){
   const ids=Object.keys(R.players),n=R.round+1,used=R.used||[],left=THEMES.map((_,i)=>i).filter(i=>!used.includes(i));
   if(n>CONFIG.rounds||!left.length)return ref.update({phase:'end',endAt:firebase.database.ServerValue.TIMESTAMP});
@@ -284,7 +284,7 @@ function secretHtml(){
 }
 const bindSecret=()=>{if($('sc'))$('sc').onclick=()=>{secretShown=!secretShown;secretFlip=secretShown;render()}};
 // Passage au débat : les cartes jouées sont mélangées et le chrono démarre
-const toDebate=()=>{if(R&&R.phase==='role')ref.update({phase:'debate',post:shuffle(Object.values(R.plays||{})),endsAt:now()+CONFIG.debateSeconds*1000})};
+const toDebate=()=>{if(R&&R.phase==='role')ref.update({phase:'debate',post:shuffle(Object.entries(R.plays||{}).filter(([k])=>R.players&&R.players[k]).map(([,v])=>v)),endsAt:now()+CONFIG.debateSeconds*1000})};
 const toVote=()=>{if(R&&R.phase==='debate')ref.update({phase:'vote'})};
 function updTimer(){
   const t=$('t');if(!t||!R||R.phase!=='debate')return;
