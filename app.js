@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='22'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
+const VERSION='23'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -97,13 +97,13 @@ function howTo(){
 // ----- Accueil, création, connexion -----
 function home(){
   const q=(new URLSearchParams(location.search).get('room')||'').toUpperCase().slice(0,4);
-  show(`<div class="hero"><h1 class="logo"><img src="ADDS/logo.png" alt="Fake or Fact"></h1><p class="tagline">Build the post. <mark>Find the troll.</mark> Don't share the fake.</p></div>
+  show(`<div class="hero"><h1 class="logo"><img class="base" src="ADDS/logo.png" alt="Fake or Fact">${[...Array(10)].map((_,k)=>`<img class="ltr" src="ADDS/letters/l${String(k+1).padStart(2,'0')}.png" alt="" aria-hidden="true">`).join('')}<span class="eraser" aria-hidden="true"></span></h1><p class="tagline">Build the post. <mark>Find the troll.</mark> Don't share the fake.</p></div>
   <div class="panel"><label for="nm">Nickname</label><input id="nm" maxlength="14" autocomplete="off" placeholder="Your nickname">
   <label for="cd">Room code</label><input id="cd" maxlength="4" value="${esc(q)}" autocapitalize="characters" autocomplete="off" placeholder="ABCD" class="codein">
   <p id="err" class="FAKE"></p><button id="jn" class="wide">Join the game</button>${q?'':'<div class="or"><span>or</span></div><button id="mk" class="ghost wide">Create a game</button>'}</div>
   <button id="how" class="how wide">How to play</button><p class="sub small">No account, no personal data. Just a nickname.</p>`);
   // Effet pinceau « out » sur le logo avant de quitter l'accueil
-  const out=fn=>{const h=app.querySelector('.hero');if(!h||calm())return fn();h.classList.add('out');setTimeout(fn,450)};
+  const out=fn=>{const h=app.querySelector('.hero');if(!h||calm())return fn();h.classList.add('out');setTimeout(fn,800)};
   $('jn').onclick=()=>{const c=$('cd').value.trim().toUpperCase(),n=$('nm').value.trim();if(!n||c.length!==4)return join(c,n);out(()=>join(c,n))};
   if($('mk'))$('mk').onclick=()=>{if(!$('nm').value.trim())return create();out(create)};
   $('how').onclick=howTo;
