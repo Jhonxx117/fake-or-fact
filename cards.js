@@ -14,7 +14,7 @@ const THEMES=[
 ['Tone','f','"Stop panicking! Hackers don\'t care about you!!!"','Emotional words replace facts.'],
 ['Date','f','An article from 2009 says Wi-Fi hacking is "impossible".','Old information: technology has changed a lot since then.']]},
 
-{name:'Social media',claim:'Instagram will charge all users €5 a month from January.',answer:'FAKE',
+{name:'Social Media',claim:'Instagram will charge all users €5 a month from January.',answer:'FAKE',
  why:'This rumour comes back every year. Instagram never announced it: only optional paid subscriptions exist.',cards:[
 ['Source','t','Instagram\'s official newsroom has no announcement about it.'],
 ['Evidence','t','Fact-checkers have shown several times that this rumour is false.'],
@@ -44,7 +44,7 @@ const THEMES=[
 ['Tone','f','"If it has a blue tick, you can share it without checking!"','It pushes you not to think.'],
 ['Evidence','f','"I have never seen a verified account lie." No proof given.','A personal feeling is not proof.']]},
 
-{name:'Dates & old news',claim:'A photo of a flood from 2019 is shared as "breaking news" today.',answer:'FAKE',
+{name:'Dates & Old News',claim:'A photo of a flood from 2019 is shared as "breaking news" today.',answer:'FAKE',
  why:'The photo is real but old. An old picture shared as new is misleading: the news is fake.',cards:[
 ['Visual','t','A reverse image search finds the same photo online in 2019.'],
 ['Date','t','The photo\'s data shows it was taken five years ago.'],
@@ -59,7 +59,7 @@ const THEMES=[
 ['Source','f','A new account with no history posted it first.','You cannot check who is behind it.'],
 ['Evidence','f','"My cousin lives there and says it\'s happening now."','Second-hand information nobody can check.']]},
 
-{name:'Images & deepfakes',claim:'AI can create a fake video of a real person saying things they never said.',answer:'FACT',
+{name:'Images & Deepfakes',claim:'AI can create a fake video of a real person saying things they never said.',answer:'FACT',
  why:'These videos are called deepfakes. AI can copy a face and a voice, and the results are more and more realistic.',cards:[
 ['Evidence','t','Researchers made a deepfake of a president that fooled most viewers.'],
 ['Source','t','A national cybersecurity agency warns about deepfake scams.'],
@@ -74,7 +74,7 @@ const THEMES=[
 ['Date','f','An article from 2015 says computers "will never copy a human voice".','Old information: AI has changed a lot.'],
 ['Reactions','f','"No way AI can do that LOL" – 5,000 likes.','Likes are not proof.']]},
 
-{name:'Artificial intelligence',claim:'ChatGPT can invent fake sources that look real.',answer:'FACT',
+{name:'Artificial Intelligence',claim:'ChatGPT can invent fake sources that look real.',answer:'FACT',
  why:'AI chatbots can "hallucinate": they sometimes invent books, articles or links that do not exist.',cards:[
 ['Source','t','OpenAI itself warns that ChatGPT can make mistakes.'],
 ['Evidence','t','A lawyer was fined for using court cases that an AI had invented.'],
@@ -89,7 +89,7 @@ const THEMES=[
 ['Evidence','f','"It gave me a link, so the source must exist."','A link can be invented too.'],
 ['Date','f','A post from before chatbots existed says "computers never invent things".','Old information about old technology.']]},
 
-{name:'Online scams',claim:'Your bank will never ask for your password by SMS.',answer:'FACT',
+{name:'Online Scams',claim:'Your bank will never ask for your password by SMS.',answer:'FACT',
  why:'Banks never ask for your password or codes by SMS, email or phone. These messages are "phishing" scams.',cards:[
 ['Source','t','Your bank\'s website says: "We will never ask for your password."'],
 ['Source','t','The national anti-scam website warns about fake bank SMS.'],
@@ -104,7 +104,7 @@ const THEMES=[
 ['Evidence','f','"My neighbour gave her password by SMS once and it was fine."','One story is not proof.'],
 ['Reactions','f','"My bank texted me for my code, so they do ask!"','That message was probably a scam.']]},
 
-{name:'Personal data & privacy',claim:'Deleting an app also deletes all the data the company has about you.',answer:'FAKE',
+{name:'Personal Data',claim:'Deleting an app also deletes all the data the company has about you.',answer:'FAKE',
  why:'Deleting the app only removes it from your phone. The company keeps your data until you ask it to delete your account.',cards:[
 ['Source','t','The app\'s privacy policy says data is kept after you uninstall it.'],
 ['Evidence','t','Under the GDPR, you must ask the company to erase your data.'],
@@ -119,7 +119,7 @@ const THEMES=[
 ['Reactions','f','"I deleted TikTok, so they know nothing about me now."','A personal belief, not a fact.'],
 ['Evidence','f','"The app icon is gone, so the data is gone."','The data is on the company\'s servers, not only on your phone.']]},
 
-{name:'Online shopping',claim:'A website with "https" and a padlock is always safe to buy from.',answer:'FAKE',
+{name:'Online Shop',claim:'A website with "https" and a padlock is always safe to buy from.',answer:'FAKE',
  why:'The padlock only means the connection is encrypted. Scam websites can have it too.',cards:[
 ['Source','t','A consumer protection agency says scam sites can have a padlock.'],
 ['Evidence','t','Most phishing websites now use "https".'],
@@ -134,7 +134,7 @@ const THEMES=[
 ['Reactions','f','Lots of five-star reviews, all posted on the same day.','Fake reviews often arrive all together.'],
 ['Evidence','f','"My browser didn\'t show a warning, so it\'s safe."','No warning does not mean no scam.']]},
 
-{name:'Search engines',claim:'The first result on Google is always the most reliable.',answer:'FAKE',
+{name:'Search Engines',claim:'The first result on Google is always the most reliable.',answer:'FAKE',
  why:'The first results can be ads or pages that are good at SEO. They are not always the most reliable.',cards:[
 ['Visual','t','The first result has a small "Sponsored" label: it is an ad.'],
 ['Source','t','Google explains that the order of results depends on many things, not on truth.'],
@@ -149,7 +149,7 @@ const THEMES=[
 ['Evidence','f','"Google is a big company, it would never show bad pages."','No proof given.'],
 ['Date','f','A blog post from 2005 says results are "checked by humans".','Old and wrong information.']]},
 
-{name:'Influencers & advertising',claim:'In France, influencers must say when a post is paid advertising.',answer:'FACT',
+{name:'Influencers & Advertising',claim:'In France, influencers must say when a post is paid advertising.',answer:'FACT',
  why:'Since the 2023 influencer law, paid posts must be clearly labelled "publicité" or "collaboration commerciale".',cards:[
 ['Source','t','The French government website explains the 2023 influencer law.'],
 ['Evidence','t','Some influencers have been fined for hiding paid partnerships.'],
@@ -164,7 +164,7 @@ const THEMES=[
 ['Evidence','f','"I\'ve seen lots of hidden ads, so it can\'t be a law."','People can break a law that exists.'],
 ['Date','f','An article from 2015 says there are "no rules for influencers".','Old information: the law came in 2023.']]},
 
-{name:'Video games & streaming',claim:'A website that gives free V-Bucks is a scam.',answer:'FACT',
+{name:'Video Games & Streaming',claim:'A website that gives free V-Bucks is a scam.',answer:'FACT',
  why:'V-Bucks are only sold by Epic Games in official stores. "Free V-Bucks" websites steal accounts or personal data.',cards:[
 ['Source','t','Epic Games says V-Bucks are only sold in official stores.'],
 ['Evidence','t','Epic Games and the police warn about sites that steal Fortnite accounts.'],
@@ -179,7 +179,7 @@ const THEMES=[
 ['Visual','f','A screenshot of a huge V-Bucks balance.','A screenshot is easy to fake.'],
 ['Evidence','f','"My friend said his cousin got some."','Second-hand information nobody can check.']]},
 
-{name:'Online health',claim:'A viral video says drinking hot water kills viruses.',answer:'FAKE',
+{name:'Online Health',claim:'A viral video says drinking hot water kills viruses.',answer:'FAKE',
  why:'Drinking hot water does not kill viruses in your body. Doctors and the WHO have said this claim is false.',cards:[
 ['Source','t','The WHO says hot drinks do not protect you from viruses.'],
 ['Evidence','t','Doctors explain that your body temperature stays the same when you drink.'],
@@ -209,7 +209,7 @@ const THEMES=[
 ['Reactions','f','"LOL, my emails don\'t pollute anything."','A joke is not proof.'],
 ['Date','f','An article from 1998 says the internet "has no impact on nature".','Very old information.']]},
 
-{name:'Online encyclopedias',claim:'Anyone can edit a Wikipedia page.',answer:'FACT',
+{name:'Encyclopedia',claim:'Anyone can edit a Wikipedia page.',answer:'FACT',
  why:'Anyone can edit most Wikipedia pages, even without an account. Volunteers then check and correct the changes.',cards:[
 ['Source','t','Wikipedia\'s own help page explains how to edit an article.'],
 ['Evidence','t','There is an "Edit" button at the top of most pages.'],

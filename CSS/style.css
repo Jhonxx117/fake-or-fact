@@ -226,8 +226,8 @@ canvas.confetti{position:fixed;inset:0;z-index:40;pointer-events:none}
   .podium .p2 .bar{animation-delay:.5s}.podium .p2 .who{animation-delay:1.1s}
   .podium .p1 .bar{animation-delay:.8s}.podium .p1 .who{animation-delay:1.5s}
 }
-@keyframes cardFlip{0%{transform:perspective(700px) rotateY(180deg);background:var(--yellow);color:transparent}
-  49%{background:var(--yellow);color:transparent}50%{transform:perspective(700px) rotateY(90deg);background:var(--white);color:inherit}
+@keyframes cardFlip{0%{transform:perspective(700px) rotateY(180deg);background:var(--blue) url(../theme/back.png) center/cover;color:transparent}
+  49%{background:var(--blue) url(../theme/back.png) center/cover;color:transparent}50%{transform:perspective(700px) rotateY(90deg);background:var(--white);color:inherit}
   100%{transform:none;background:var(--white)}}
 @keyframes glitch{0%{transform:translate(0);text-shadow:none}20%{transform:translate(-3px,1px) skewX(-8deg);text-shadow:3px 0 #d62828,-3px 0 var(--blue)}
   40%{transform:translate(3px,-1px) skewX(6deg);text-shadow:-3px 0 #d62828,3px 0 var(--blue)}60%{transform:translate(-2px,0);text-shadow:2px 0 #d62828}
@@ -239,3 +239,15 @@ canvas.confetti{position:fixed;inset:0;z-index:40;pointer-events:none}
 /* ===== Thèmes ===== */
 .theme-name{margin:.2rem 0 -.6rem;font-family:var(--text);text-transform:uppercase;letter-spacing:.08em;font-size:1.3rem;color:var(--blue)}
 .tag.ok{background:var(--blue);color:var(--white)}
+
+/* Carte illustrée du thème (écran Breaking news) : arrive de dos, puis se retourne */
+.tcard{width:11rem;max-width:55vw;margin:.5rem auto 1rem;perspective:900px;transform:rotate(-3deg)}
+.tcard .inner{position:relative;transform-style:preserve-3d}
+.tcard img{display:block;width:100%;height:auto;border-radius:var(--r);border:2px solid var(--black);box-shadow:0 6px 0 var(--black);backface-visibility:hidden}
+.tcard .back{position:absolute;inset:0;height:100%;object-fit:cover;transform:rotateY(180deg)}
+@media (prefers-reduced-motion:no-preference){
+  .tcard.in{animation:deal .6s var(--ease) backwards}
+  .tcard.in .inner{animation:turn .8s var(--ease) .6s backwards}
+}
+@keyframes deal{0%{opacity:0;transform:translate(-30px,-60px) rotate(-25deg) scale(.6)}100%{transform:rotate(-3deg)}}
+@keyframes turn{from{transform:rotateY(180deg)}to{transform:rotateY(0)}}

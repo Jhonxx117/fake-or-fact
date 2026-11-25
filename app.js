@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='11'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
+const VERSION='13'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -178,6 +178,9 @@ const voted=i=>(R.votes||{})[i]&&(R.suspects||{})[i]; // vote complet = SHARE/RE
 const cardOf=id=>CARDS.find(c=>c.id===id);
 const theme=()=>THEMES[R.theme]; // thème de la manche
 const cardBox=c=>`<span class="muted">${c.category}</span><br>${esc(c.text)}`;
+// Carte illustrée du thème : dossier theme/ à la racine (theme01.png … theme15.png dans l'ordre de THEMES, dos = back.png).
+// Elle arrive de dos puis se retourne (voir .tcard dans le CSS).
+const themeCard=()=>theme()?`<div class="tcard"><div class="inner"><img class="front" src="theme/theme${String(R.theme+1).padStart(2,'0')}.png" alt="${esc(theme().name)} card"><img class="back" src="theme/back.png" alt=""></div></div>`:'';
 const newsBox=()=>`<p class="theme-name">${theme()?esc(theme().name):''}</p><div class="box headline">${esc(R.headline)}</div>`;
 const playedBy=id=>{const i=Object.keys(R.plays||{}).find(k=>R.plays[k]===id);return i&&R.players[i]?pn(i):'?'}; // retrouve qui a joué la carte
 const postBox=mark=>`<ol class="post">${R.post.map(id=>{const c=cardOf(id);return `<li><strong>${playedBy(id)}</strong> · ${cardBox(c)}${mark?(c.type==='trap'?`<br><span class="tag flag">🚩 Trap</span> ${esc(c.why)}`:'<br><span class="tag ok">✅ True clue</span>'):''}</li>`}).join('')}</ol>`;
@@ -208,7 +211,7 @@ function role(){
   if(!R.roles||!R.roles[pid]){show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p>${newsBox()}<p>A round is already in progress. You will play from the next round.</p>`);return}
   const my=R.roles[pid],hand=(R.hands||{})[pid]||[],played=(R.plays||{})[pid],ids=act(),np=ids.filter(i=>(R.plays||{})[i]).length,sp=(R.spare||{})[pid];
   const goal=my==='Troll'?'You know the truth. Make the Citizens vote wrong! You score 1 point for each Citizen who votes wrong, and nothing for your own vote. Your traps are marked 🚩 below.':'Is this news true or fake? Read your clues: one of them is a trap! Play the clue you trust, and find the Troll.';
-  show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><h2>Breaking news</h2>${newsBox()}
+  show(`<p class="muted">Round ${R.round} of ${CONFIG.rounds}</p><h2>Breaking news</h2>${themeCard()}${newsBox()}
   <button id="rv" class="ghost">${roleShown?'Hide my role and cards':'Show my role and cards'}</button>
   ${roleShown?`<div class="box rolebox ${my==='Troll'?'troll':'citizen'}${flipRole?' flip reveal':''}"><p class="youare">You are…</p><div class="headline rolename ${my==='Troll'?'FAKE':'FACT'}" data-text="${my}">${my} ${my==='Troll'?'😈':'😇'}</div><p>${goal}</p></div>${my==='Troll'?trollLive():''}<h2>Your clues</h2>
   ${hand.map(id=>`<button class="card ${id===(played||sel)?'on':''} ${id===popCard?'pop':''}" data-id="${id}" ${played?'disabled':''}>${cardBox(cardOf(id))}${my==='Troll'?trollTag(cardOf(id)):''}</button>`).join('')}
