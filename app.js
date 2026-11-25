@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='24'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
+const VERSION='25'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -373,28 +373,45 @@ function final(){
 // =====================================================================
 // MODE TABLE (jeu physique) : ouvert UNIQUEMENT par le QR code d'une carte thème (?card=01 … ?card=15).
 // Un seul téléphone qu'on se passe : nombre de joueurs → chaque joueur entre son nom et voit son rôle →
-// débat chronométré → le maître du jeu donne les points. Chaque carte = une partie indépendante (rien n'est enregistré).
+// débat chronométré → le maître du jeu donne les points. Partie de 6 manches (une carte scannée par manche) : joueurs et points
+// gardés dans CE téléphone (localStorage 'fof-table', effacé à la fin, avec « New game » ou après 3 h sans jouer).
 // =====================================================================
 let T=null,tTimer=null;
+const T_ROUNDS=6,T_KEEP_HOURS=3; // 6 manches ; une partie oubliée depuis 3 h est effacée
+// La partie est gardée DANS CE TÉLÉPHONE (localStorage) : joueurs, points, manches jouées. Rien n'est envoyé sur Internet.
+const tMem={get(){try{const g=JSON.parse(localStorage.getItem('fof-table')||'null');if(g&&Date.now()-g.t<T_KEEP_HOURS*3600e3&&g.played<T_ROUNDS)return g;localStorage.removeItem('fof-table')}catch(e){}return null},
+  save(){try{localStorage.setItem('fof-table',JSON.stringify({t:Date.now(),played:T.played,players:T.players.map(p=>({name:p.name,score:p.score}))}))}catch(e){}},
+  clear(){try{localStorage.removeItem('fof-table')}catch(e){}}};
 const tAv=(k,n)=>`<span class="av c${k%3}" aria-hidden="true">${esc(n.charAt(0).toUpperCase())}</span>`;
-const tBar=()=>`<header class="bar"><img src="ADDS/logo.png" alt="Fake or Fact"><div class="mid"><span class="rnd">Table mode</span><span class="tname">${esc(THEMES[T.theme].name)}</span></div></header>`;
-function tShow(key,html){show(tBar()+html);animate('t-'+key)}
+const tBar=()=>`<header class="bar"><img src="ADDS/logo.png" alt="Fake or Fact"><div class="mid"><span class="rnd">Round ${T.round} / ${T_ROUNDS}</span><span class="dots">${Array.from({length:T_ROUNDS},(_,k)=>`<i class="${k<T.round-1?'done':k===T.round-1?'now':''}"></i>`).join('')}</span><span class="tname">${esc(THEMES[T.theme].name)}</span></div></header>`;
+function tShow(key,html){show(tBar()+html);animate('t-'+key+T.round)}
+const tCardImg=()=>{const th=THEMES[T.theme];return `<div class="tcard"><div class="inner"><img class="front" src="theme/theme${String(T.theme+1).padStart(2,'0')}.png" alt="${esc(th.name)} card"><img class="back" src="theme/back.png" alt=""></div></div>`};
+// Nouveaux rôles à chaque manche (1 Troll avec 3-4 joueurs, 1 ou 2 avec 5-6)
+const tDeal=()=>{const n=T.players.length,trolls=n>=5?1+Math.floor(Math.random()*2):1,roles=shuffle(Array.from({length:n},(_,k)=>k<trolls?'Troll':'Citizen'));T.players.forEach((p,k)=>p.role=roles[k])};
+// Entrée du mode Table (QR code d'une carte) : partie en cours dans ce téléphone ? → continuer ou recommencer
 function tableMode(t){
-  T={theme:t,n:0,players:[],step:'count',undo:[]};tCount();
+  const g=tMem.get();
+  if(!g){T={theme:t,n:0,players:[],played:0,round:1,undo:[]};return tCount()}
+  T={theme:t,n:g.players.length,players:g.players.map(p=>({...p})),played:g.played,round:g.played+1,undo:[]};
+  const ranked=[...T.players].sort((a,b)=>b.score-a.score);
+  tShow('resume',`${tCardImg()}<h1 class="center">Game in progress</h1>
+  <p class="center">Round <b>${T.played+1}</b> of ${T_ROUNDS} · ${T.players.length} players</p>
+  <ol class="board">${ranked.map((p,r)=>`<li><span class="rk">${r+1}</span>${tAv(T.players.indexOf(p),p.name)}<span class="n">${esc(p.name)}</span><b>${p.score}</b></li>`).join('')}</ol>
+  <button id="tcont" class="wide">Continue the game</button><button id="tnew" class="ghost wide">New game</button>
+  <p class="muted center small">New players? Start a new game.</p>`);
+  $('tcont').onclick=()=>{tDeal();tPass(0)};
+  $('tnew').onclick=()=>{if(!confirm('Start a new game? Names and points are reset.'))return;tMem.clear();T={theme:t,n:0,players:[],played:0,round:1,undo:[]};tCount()};
 }
-// 1. Combien de joueurs ?
+// 1. Combien de joueurs ? (seulement pour une nouvelle partie)
 function tCount(){
-  const th=THEMES[T.theme];
-  tShow('count',`<div class="tcard"><div class="inner"><img class="front" src="theme/theme${String(T.theme+1).padStart(2,'0')}.png" alt="${esc(th.name)} card"><img class="back" src="theme/back.png" alt=""></div></div>
-  <h1 class="center">How many players?</h1><p class="muted center">The game master does not count as a player.</p>
+  tShow('count',`${tCardImg()}
+  <h1 class="center">How many players?</h1><p class="muted center">The game master does not count as a player. The game lasts ${T_ROUNDS} rounds (one card per round).</p>
   <div class="counts">${[3,4,5,6].map(n=>`<button class="count" data-n="${n}">${n}</button>`).join('')}</div>
   <button id="how" class="how wide">How to play</button>`);
-  app.querySelectorAll('.count').forEach(b=>b.onclick=()=>{
-    const n=+b.dataset.n,trolls=n>=5?1+Math.floor(Math.random()*2):1,roles=shuffle(Array.from({length:n},(_,k)=>k<trolls?'Troll':'Citizen'));
-    T.n=n;T.roles=roles;T.players=[];tName()});
+  app.querySelectorAll('.count').forEach(b=>b.onclick=()=>{T.n=+b.dataset.n;T.players=[];tName()});
   $('how').onclick=howTo;
 }
-// 2. Chaque joueur : « Who are you? » puis son rôle
+// 2a. Nouvelle partie : chaque joueur entre son nom (les rôles sont tirés quand tout le monde est inscrit)
 function tName(){
   const k=T.players.length;
   tShow('name'+k,`<p class="kicker center">Player ${k+1} of ${T.n}</p><h1 class="center">Who are you?</h1>
@@ -402,18 +419,30 @@ function tName(){
   <button id="tok" class="wide">OK</button></div>
   <p class="muted center small">Make sure nobody else can see the screen.</p>`);
   const go=()=>{const n=$('tn').value.trim();if(!n)return err('Enter your name.');if(T.players.some(p=>p.name.toLowerCase()===n.toLowerCase()))return err('This name is already taken.');
-    T.players.push({name:n,role:T.roles[k],score:0});flash();buzz(40);tRole()};
+    T.players.push({name:n,score:0});
+    if(T.players.length<T.n)return tName();
+    tMem.save();tDeal();tPass(0)};
   $('tok').onclick=go;$('tn').onkeydown=e=>{if(e.key==='Enter')go()};$('tn').focus();
 }
-function tRole(){
-  const k=T.players.length-1,p=T.players[k],troll=p.role==='Troll',last=T.players.length===T.n;
-  tShow('role'+k,`<p class="kicker center">Player ${k+1} of ${T.n}</p>
+// 2b. On se passe le téléphone : chaque joueur appuie sur son nom pour voir son rôle
+function tPass(k){
+  const p=T.players[k];
+  tShow('pass'+k,`<p class="kicker center">Player ${k+1} of ${T.players.length}</p><h1 class="center">Pass the phone to</h1>
+  <ul class="players center"><li class="pchip">${tAv(k,p.name)}<span>${esc(p.name)}</span></li></ul>
+  <button id="tme" class="wide">I am ${esc(p.name)}: show my role</button>
+  <p class="muted center small">Make sure nobody else can see the screen.</p>`);
+  $('tme').onclick=()=>{flash();buzz(40);tRole(k)};
+}
+function tRole(k){
+  const p=T.players[k],troll=p.role==='Troll',last=k===T.players.length-1;
+  tShow('role'+k,`<p class="kicker center">Player ${k+1} of ${T.players.length}</p>
   <div class="box rolebox ${troll?'troll':'citizen'} flip reveal"><p class="youare">${esc(p.name)}, you are…</p><div class="rolename">${p.role}</div>
   <p>${troll?'Make the others vote wrong! Show this screen to the game master only: they will tell you if the news is true or fake.':'Find out if the news is true or fake, and find the Troll.'}</p></div>
   <button id="tnext" class="wide">${last?'Hide my role and start':'Hide my role and pass the phone'}</button>
-  <p class="muted center small">${last?'Everyone is ready after you!':'Next: player '+(k+2)+' of '+T.n}</p>`);
-  $('tnext').onclick=()=>last?tReady():tName();
+  <p class="muted center small">${last?'Everyone is ready after you!':'Next: '+esc(T.players[k+1].name)}</p>`);
+  $('tnext').onclick=()=>last?tReady():tPass(k+1);
 }
+
 // 3. Tout le monde est prêt : l'info + bouton « Start the debate »
 function tReady(){
   const th=THEMES[T.theme];
@@ -447,9 +476,10 @@ function tVote(){
   <button id="tshow" class="wide">Show the answer</button>`);
   $('tshow').onclick=()=>{T.undo=[];tScore()};
 }
-// 6. Points : le maître du jeu tape sur les boutons de chaque joueur
+// 6. Points : le maître du jeu tape sur les boutons de chaque joueur (les points s'ajoutent à ceux des manches d'avant)
 function tScore(){
-  const th=THEMES[T.theme],trolls=T.players.filter(p=>p.role==='Troll');
+  if(T.played<T.round){T.played=T.round;tMem.save()} // la manche compte dès que la réponse est montrée
+  const th=THEMES[T.theme],trolls=T.players.filter(p=>p.role==='Troll'),last=T.round>=T_ROUNDS;
   const btn=(k,pts,label)=>`<button class="ghost mini tp" data-k="${k}" data-p="${pts}">${label}</button>`;
   const ranked=T.players.map((p,k)=>({p,k})).sort((a,b)=>b.p.score-a.p.score),max=Math.max(1,...T.players.map(p=>p.score));
   tShow('score',`<div class="vhead"><p class="kicker">The answer</p><div class="verdict ${th.answer==='FAKE'?'FAKE':'FACT'}">${th.answer==='FAKE'?'FAKE':'FACT'}</div></div>
@@ -459,15 +489,37 @@ function tScore(){
   <ul class="tscore">${T.players.map((p,k)=>`<li><div class="who">${tAv(k,p.name)}<span class="n">${esc(p.name)}</span><span class="mini-role ${p.role==='Troll'?'troll':'citizen'}">${p.role}</span><b>${p.score}</b></div>
     <div class="btns">${p.role==='Troll'?btn(k,1,'Fooled +1'):btn(k,2,'Right vote +2')+btn(k,1,'Troll found +1')}${btn(k,-1,'French −1')}</div></li>`).join('')}</ul>
   <button id="tun" class="link" ${T.undo.length?'':'disabled'}>Undo last points</button>
-  <h2>Ranking</h2><ol class="board">${ranked.map(({p,k},r)=>`<li><span class="rk">${r+1}</span>${tAv(k,p.name)}<span class="n">${esc(p.name)}</span><span class="barw"><span style="width:${Math.max(4,Math.max(0,p.score)/max*100)}%"></span></span><b>${p.score}</b></li>`).join('')}</ol>
-  <button id="tagain" class="wide">Play again with this card</button><p class="muted center small">For a new news story, scan the QR code of another card.</p>`);
-  app.querySelectorAll('.tp').forEach(b=>b.onclick=()=>{const k=+b.dataset.k,v=+b.dataset.p;T.players[k].score+=v;T.undo.push([k,v]);buzz(15);
+  <h2>Ranking <small>after round ${T.round} / ${T_ROUNDS}</small></h2><ol class="board">${ranked.map(({p,k},r)=>`<li><span class="rk">${r+1}</span>${tAv(k,p.name)}<span class="n">${esc(p.name)}</span><span class="barw"><span style="width:${Math.max(4,Math.max(0,p.score)/max*100)}%"></span></span><b>${p.score}</b></li>`).join('')}</ol>
+  ${last?'<button id="tfin" class="wide">See the final ranking</button>':'<button id="tnx" class="wide">Next card</button>'}
+  <button id="tend" class="ghost wide">End the game now</button>`);
+  app.querySelectorAll('.tp').forEach(b=>b.onclick=()=>{const k=+b.dataset.k,v=+b.dataset.p;T.players[k].score+=v;T.undo.push([k,v]);tMem.save();buzz(15);
     popMsg(`${T.players[k].name} ${v>0?'+':'−'}${Math.abs(v)}`,v>0?'good small':'bad small');tScoreKeep()});
-  $('tun').onclick=()=>{const u=T.undo.pop();if(u){T.players[u[0]].score-=u[1];tScoreKeep()}};
-  $('tagain').onclick=()=>{if(confirm('Start a new game with this card? Names and points are reset.'))tableMode(T.theme)};
+  $('tun').onclick=()=>{const u=T.undo.pop();if(u){T.players[u[0]].score-=u[1];tMem.save();tScoreKeep()}};
+  if(last)$('tfin').onclick=tFinal;else $('tnx').onclick=tNext;
+  $('tend').onclick=()=>{if(confirm('End the game now? You will see the final ranking, then the points are erased.'))tFinal()};
 }
 // Réaffiche l'écran des points sans rejouer les animations d'entrée
 function tScoreKeep(){const y=scrollY;tScore();scrollTo(0,y)}
+// 7. Entre deux manches : scanner la carte suivante (ou rejouer la même)
+function tNext(){
+  T.undo=[];
+  tShow('next',`<h1 class="center">Next card!</h1>
+  <div class="box"><p class="center">Draw a new theme card and <b>scan its QR code</b> with this phone.</p><p class="muted center small">The players and the points are kept. New roles are dealt every round.</p></div>
+  <p class="center">Round <b>${T.round+1}</b> of ${T_ROUNDS}</p>
+  <button id="tsame" class="ghost wide">Play this card again</button>`);
+  $('tsame').onclick=()=>{T.round=T.played+1;T.undo=[];tDeal();tPass(0)};
+}
+// 8. Fin de partie : podium + classement, puis la partie est effacée du téléphone
+function tFinal(){
+  tMem.clear();
+  const ranked=T.players.map((p,k)=>({p,k})).sort((a,b)=>b.p.score-a.p.score),top=ranked.slice(0,3),med=['🥇','🥈','🥉'],order=[1,0,2].filter(i=>top[i]);
+  T.round=Math.min(T.round,T_ROUNDS);
+  tShow('final',`<h1 class="center">Final scores</h1>
+  <div class="podium">${order.map(i=>`<div class="step p${i+1}"><div class="who">${med[i]}<br><strong>${esc(top[i].p.name)}</strong><br>${top[i].p.score} pts</div><div class="bar">${i+1}</div></div>`).join('')}</div>
+  <h2>Full ranking</h2><ol class="board">${ranked.map(({p,k},r)=>`<li><span class="rk">${r+1}</span>${tAv(k,p.name)}<span class="n">${esc(p.name)}</span><b>${p.score}</b></li>`).join('')}</ol>
+  <p class="callout good">Thanks for playing! To start a new game, scan any theme card.</p>`);
+  if(!calm())confetti();
+}
 
 // ----- Démarrage : reprend la partie en cours après un rechargement -----
 (async()=>{
