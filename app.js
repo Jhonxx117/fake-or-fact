@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='25'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
+const VERSION='26'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -427,7 +427,7 @@ function tName(){
 // 2b. On se passe le téléphone : chaque joueur appuie sur son nom pour voir son rôle
 function tPass(k){
   const p=T.players[k];
-  tShow('pass'+k,`<p class="kicker center">Player ${k+1} of ${T.players.length}</p><h1 class="center">Pass the phone to</h1>
+  tShow('pass'+k,`${k===0?tCardImg():''}<p class="kicker center">Player ${k+1} of ${T.players.length}</p><h1 class="center">Pass the phone to</h1>
   <ul class="players center"><li class="pchip">${tAv(k,p.name)}<span>${esc(p.name)}</span></li></ul>
   <button id="tme" class="wide">I am ${esc(p.name)}: show my role</button>
   <p class="muted center small">Make sure nobody else can see the screen.</p>`);
@@ -504,10 +504,50 @@ function tScoreKeep(){const y=scrollY;tScore();scrollTo(0,y)}
 function tNext(){
   T.undo=[];
   tShow('next',`<h1 class="center">Next card!</h1>
-  <div class="box"><p class="center">Draw a new theme card and <b>scan its QR code</b> with this phone.</p><p class="muted center small">The players and the points are kept. New roles are dealt every round.</p></div>
+  <div class="box"><p class="center">Draw a new theme card and <b>scan its QR code</b>.</p><p class="muted center small">The players and the points are kept. New roles are dealt every round.</p></div>
   <p class="center">Round <b>${T.round+1}</b> of ${T_ROUNDS}</p>
+  <button id="tscan" class="wide">📷 Scan the next card</button>
   <button id="tsame" class="ghost wide">Play this card again</button>`);
+  $('tscan').onclick=()=>scanCard(i=>{tUrl(i);T.theme=i;T.round=T.played+1;T.undo=[];tDeal();tPass(0)});
   $('tsame').onclick=()=>{T.round=T.played+1;T.undo=[];tDeal();tPass(0)};
+}
+// ----- Scanner de QR code DANS le site (mode Table) : ouvre la caméra arrière, lit le QR de la carte, sans recharger la page -----
+// Utilise BarcodeDetector (Chrome / Android) ; sinon charge la lib jsQR 1.4.0 (licence Apache-2.0, fichier ADDS/jsQR.js, chargée seulement au 1er scan) (iPhone, Firefox…). La caméra demande l'autorisation une fois.
+let jsQRload=null;
+const loadJsQR=()=>jsQRload||(jsQRload=new Promise((ok,ko)=>{const s=document.createElement('script');s.src='ADDS/jsQR.js';s.onload=()=>ok(window.jsQR);s.onerror=()=>{jsQRload=null;ko()};document.head.appendChild(s)}));
+const tUrl=i=>{try{history.replaceState(null,'','?card='+String(i+1).padStart(2,'0'))}catch(e){}}; // si la page est rechargée, on retombe sur la bonne carte
+function scanCard(onCard){
+  const box=document.createElement('div');box.className='scanner';
+  box.innerHTML=`<div class="scanwin" role="dialog" aria-label="Scan a card"><p class="kicker">Scan the QR code of the card</p>
+    <div class="scanview"><video playsinline muted></video><span class="aim"></span></div>
+    <p class="scanmsg">Opening the camera…</p><button class="ghost wide scanx">Cancel</button></div>`;
+  document.body.appendChild(box);
+  const v=box.querySelector('video'),msg=t=>box.querySelector('.scanmsg').textContent=t;let stream=null,stop=false,timer=null;
+  const close=()=>{stop=true;clearTimeout(timer);if(stream)stream.getTracks().forEach(t=>t.stop());box.remove()};
+  box.querySelector('.scanx').onclick=close;
+  const found=txt=>{const m=/[?&]card=(\d{1,2})/.exec(txt||''),n=m?parseInt(m[1],10):0;
+    if(n>=1&&n<=THEMES.length){buzz(60);close();onCard(n-1);return true}
+    msg('This is not a Fake or Fact theme card. Try again.');return false};
+  (async()=>{
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return msg('This browser cannot open the camera. Scan the card with the camera app of the phone.');
+    try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false})}
+    catch(e){return msg('The camera is blocked. Allow the camera for this site in the browser settings, or scan the card with the camera app of the phone.')}
+    if(stop){stream.getTracks().forEach(t=>t.stop());return}
+    v.srcObject=stream;try{await v.play()}catch(e){}
+    let det=null,jsqr=null;
+    if('BarcodeDetector' in window){try{det=new BarcodeDetector({formats:['qr_code']})}catch(e){det=null}}
+    if(!det){try{jsqr=await loadJsQR()}catch(e){return msg('The QR reader could not load. Reload the page and try again.')}}
+    msg('Point the camera at the QR code of the card.');
+    const c=document.createElement('canvas'),x=c.getContext('2d',{willReadFrequently:true});
+    const loop=async()=>{if(stop)return;
+      if(v.readyState>=2&&v.videoWidth){try{
+        if(det){const r=await det.detect(v);if(r[0]&&found(r[0].rawValue))return}
+        else{const k=Math.min(1,720/Math.max(v.videoWidth,v.videoHeight));c.width=Math.round(v.videoWidth*k);c.height=Math.round(v.videoHeight*k);
+          x.drawImage(v,0,0,c.width,c.height);const r=jsqr(x.getImageData(0,0,c.width,c.height).data,c.width,c.height,{inversionAttempts:'dontInvert'});if(r&&found(r.data))return}
+      }catch(e){}}
+      if(!stop)timer=setTimeout(loop,150)};
+    loop();
+  })();
 }
 // 8. Fin de partie : podium + classement, puis la partie est effacée du téléphone
 function tFinal(){
@@ -517,7 +557,9 @@ function tFinal(){
   tShow('final',`<h1 class="center">Final scores</h1>
   <div class="podium">${order.map(i=>`<div class="step p${i+1}"><div class="who">${med[i]}<br><strong>${esc(top[i].p.name)}</strong><br>${top[i].p.score} pts</div><div class="bar">${i+1}</div></div>`).join('')}</div>
   <h2>Full ranking</h2><ol class="board">${ranked.map(({p,k},r)=>`<li><span class="rk">${r+1}</span>${tAv(k,p.name)}<span class="n">${esc(p.name)}</span><b>${p.score}</b></li>`).join('')}</ol>
-  <p class="callout good">Thanks for playing! To start a new game, scan any theme card.</p>`);
+  <p class="callout good">Thanks for playing!</p>
+  <button id="tscan" class="wide">📷 Scan a card for a new game</button>`);
+  $('tscan').onclick=()=>scanCard(i=>{tUrl(i);tableMode(i)});
   if(!calm())confetti();
 }
 
