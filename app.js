@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='28'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
+const VERSION='30'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -99,10 +99,11 @@ function howTo(){
 // iPhone / iPad : Apple ne le permet pas → le bouton ouvre une petite aide (Partager → Sur l'écran d'accueil).
 // Rien n'est affiché si le jeu est déjà ouvert comme appli installée.
 const isApp=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+const isAndroid=()=>/android/i.test(navigator.userAgent);
 const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 function paintInstall(){
   const box=$('inst');if(!box)return;
-  if(isApp()||(!window.installPrompt&&!isIOS())){box.innerHTML='';return}
+  if(isApp()||(!window.installPrompt&&!isIOS()&&!isAndroid())){box.innerHTML='';return}
   box.innerHTML='<button id="ins" class="ghost wide install">📲 Install the app</button>';
   $('ins').onclick=async()=>{
     const ev=window.installPrompt;
@@ -111,15 +112,36 @@ function paintInstall(){
   };
 }
 window.paintInstall=paintInstall;
+// Étapes selon le navigateur de l'iPhone (le bouton Partager n'est pas au même endroit partout)
+function iosSteps(){
+  if(!isIOS())return androidSteps();
+  const ua=navigator.userAgent,share='<span class="ios-share" aria-hidden="true">⬆︎</span>';
+  const end='<li>Tap <strong>Add to Home Screen</strong> ➕ (if you don\'t see it, scroll the list or tap <strong>More</strong>).</li><li>Tap <strong>Add</strong>. The Fake or Fact icon is on your home screen!</li>';
+  if(/CriOS|EdgiOS|FxiOS/.test(ua))
+    return `<p class="big">In <strong>${/CriOS/.test(ua)?'Chrome':/EdgiOS/.test(ua)?'Edge':'Firefox'}</strong>:</p>
+    <ol class="steps"><li>Tap the <strong>Share</strong> button ${share} at the <strong>top right</strong>, in the address bar (or in the <strong>•••</strong> menu).</li>${end}</ol>
+    <p class="small">It doesn't work? Open this page in <strong>Safari</strong>.</p>`;
+  return `<p class="big">In <strong>Safari</strong>:</p>
+    <ol class="steps"><li>Tap the <strong>•••</strong> button (at the bottom, next to the address) then <strong>Share</strong> ${share}.<br><span class="small muted">Older iPhone: tap the <strong>Share</strong> button ${share} directly, at the bottom of the screen.</span></li>${end}</ol>`;
+}
+// Android sans installation automatique (Samsung Internet, Firefox, ou Chrome qui ne l'a pas encore proposée)
+function androidSteps(){
+  const ua=navigator.userAgent,end='<li>Tap <strong>Install</strong> or <strong>Add</strong>. The Fake or Fact icon is on your home screen!</li>';
+  if(/SamsungBrowser/.test(ua))return `<p class="big">In <strong>Samsung Internet</strong>:</p>
+    <ol class="steps"><li>Tap the <strong>menu ≡</strong> at the bottom right.</li><li>Tap <strong>Add page to</strong> then <strong>Home screen</strong>.</li>${end}</ol>`;
+  if(/Firefox/.test(ua))return `<p class="big">In <strong>Firefox</strong>:</p>
+    <ol class="steps"><li>Tap the <strong>menu ⋮</strong> (at the top or bottom right).</li><li>Tap <strong>Install</strong> or <strong>Add to Home screen</strong>.</li>${end}</ol>`;
+  return `<p class="big">In <strong>${/EdgA/.test(ua)?'Edge':'Chrome'}</strong>:</p>
+    <ol class="steps"><li>Tap the <strong>menu ⋮</strong> at the top right.</li><li>Tap <strong>Install app</strong> or <strong>Add to Home screen</strong>.</li>${end}</ol>
+    <p class="small">Don't see it? Reload the page once and try again.</p>`;
+}
 function iosHelp(){
   if($('ioshelp'))return;
   const d=document.createElement('div');d.id='ioshelp';d.className='modal';
   d.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="Install the app">
   <button class="close ghost" aria-label="Close">✕</button>
-  <h1>Install the app</h1>
-  <p class="big">On iPhone, open this page in <strong>Safari</strong>, then:</p>
-  <ol class="steps"><li>Tap the <strong>Share</strong> button <span class="ios-share" aria-hidden="true">⬆︎</span> (at the bottom of the screen).</li>
-  <li>Scroll and tap <strong>Add to Home Screen</strong> ➕.</li><li>Tap <strong>Add</strong>. The Fake or Fact icon is on your home screen!</li></ol>
+  <h1>Install the app</h1>${iosSteps()}
+  ${isIOS()?'<p class="muted small">Don\'t see the bar? Scroll up a little or tap the bottom of the screen: it comes back.</p>':''}
   <button class="close">Got it!</button></div>`;
   const close=()=>{d.classList.add('out');setTimeout(()=>d.remove(),250);document.removeEventListener('keydown',k)};
   const k=e=>{if(e.key==='Escape')close()};
