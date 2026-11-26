@@ -592,3 +592,8 @@ button.link#tun{background:var(--white);color:var(--black);border:2px solid var(
 .scanview .aim{position:absolute;inset:18%;border:4px solid var(--yellow);border-radius:14px;box-shadow:0 0 0 999px rgba(2,2,3,.35)}
 .scanmsg{margin:.2rem 0 .3rem;font-size:.95rem}
 .scanwin .scanx{margin-right:0}
+/* PWA : bouton « Install the app » de l'accueil + aide iPhone */
+.install{margin-top:.6rem}
+.ios-share{display:inline-flex;align-items:center;justify-content:center;width:1.6rem;height:1.6rem;border:2px solid var(--blue);border-radius:6px;color:var(--blue);font-weight:700;line-height:1;vertical-align:middle}
+/* Appli installée (plein écran) : un peu d'espace sous l'encoche des téléphones */
+@media (display-mode: standalone){body{padding-top:env(safe-area-inset-top)}}

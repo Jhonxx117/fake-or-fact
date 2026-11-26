@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='27'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
+const VERSION='28'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -94,6 +94,39 @@ function howTo(){
   document.addEventListener('keydown',esc_);document.body.appendChild(d);d.querySelector('.close').focus();
 }
 
+// ----- PWA : bouton « Install the app » sur l'accueil -----
+// Android / PC (Chrome, Edge…) : le navigateur donne une invitation (window.installPrompt, gardée dans index.html) → vraie installation en 1 clic.
+// iPhone / iPad : Apple ne le permet pas → le bouton ouvre une petite aide (Partager → Sur l'écran d'accueil).
+// Rien n'est affiché si le jeu est déjà ouvert comme appli installée.
+const isApp=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+function paintInstall(){
+  const box=$('inst');if(!box)return;
+  if(isApp()||(!window.installPrompt&&!isIOS())){box.innerHTML='';return}
+  box.innerHTML='<button id="ins" class="ghost wide install">📲 Install the app</button>';
+  $('ins').onclick=async()=>{
+    const ev=window.installPrompt;
+    if(ev){ev.prompt();try{await ev.userChoice}catch(e){}window.installPrompt=null;return paintInstall()}
+    iosHelp();
+  };
+}
+window.paintInstall=paintInstall;
+function iosHelp(){
+  if($('ioshelp'))return;
+  const d=document.createElement('div');d.id='ioshelp';d.className='modal';
+  d.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="Install the app">
+  <button class="close ghost" aria-label="Close">✕</button>
+  <h1>Install the app</h1>
+  <p class="big">On iPhone, open this page in <strong>Safari</strong>, then:</p>
+  <ol class="steps"><li>Tap the <strong>Share</strong> button <span class="ios-share" aria-hidden="true">⬆︎</span> (at the bottom of the screen).</li>
+  <li>Scroll and tap <strong>Add to Home Screen</strong> ➕.</li><li>Tap <strong>Add</strong>. The Fake or Fact icon is on your home screen!</li></ol>
+  <button class="close">Got it!</button></div>`;
+  const close=()=>{d.classList.add('out');setTimeout(()=>d.remove(),250);document.removeEventListener('keydown',k)};
+  const k=e=>{if(e.key==='Escape')close()};
+  d.addEventListener('click',e=>{if(e.target===d||e.target.classList.contains('close'))close()});
+  document.addEventListener('keydown',k);document.body.appendChild(d);d.querySelector('.close').focus();
+}
+
 // ----- Accueil, création, connexion -----
 function home(){
   const q=(new URLSearchParams(location.search).get('room')||'').toUpperCase().slice(0,4);
@@ -101,7 +134,8 @@ function home(){
   <div class="panel"><label for="nm">Nickname</label><input id="nm" maxlength="14" autocomplete="off" placeholder="Your nickname">
   <label for="cd">Room code</label><input id="cd" maxlength="4" value="${esc(q)}" autocapitalize="characters" autocomplete="off" placeholder="ABCD" class="codein">
   <p id="err" class="FAKE"></p><button id="jn" class="wide">Join the game</button>${q?'':'<div class="or"><span>or</span></div><button id="mk" class="ghost wide">Create a game</button>'}</div>
-  <button id="how" class="how wide">How to play</button><p class="sub small">No account, no personal data. Just a nickname.</p>`);
+  <button id="how" class="how wide">How to play</button><div id="inst"></div><p class="sub small">No account, no personal data. Just a nickname.</p>`);
+  paintInstall();
   // Effet pinceau « out » sur le logo avant de quitter l'accueil
   const out=fn=>{const h=app.querySelector('.hero');if(!h||calm())return fn();h.classList.add('out');setTimeout(fn,800)};
   // Anti double-clic : pendant le chargement, les 2 boutons sont bloqués (« Joining… ») ; ils se débloquent seulement en cas d'erreur.
