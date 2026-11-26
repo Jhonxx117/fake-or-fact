@@ -1,5 +1,5 @@
 // ===== RÉGLAGES =====
-const VERSION='26'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
+const VERSION='27'; // à augmenter à CHAQUE mise à jour du jeu : les téléphones avec l'ancien code verront « not up to date »
 const CONFIG={rounds:6,debateSeconds:90,pointsCorrectVote:2,pointsTrollFound:1,pointsTrollWin:1,frenchPenalty:1,maxTrolls:2,minPlayers:3,maxPlayers:6,idleMinutes:20,endedMinutes:30};
 firebase.initializeApp({projectId:"fakeorfact-8274b",databaseURL:"https://fakeorfact-8274b-default-rtdb.europe-west1.firebasedatabase.app"});
 
@@ -104,28 +104,46 @@ function home(){
   <button id="how" class="how wide">How to play</button><p class="sub small">No account, no personal data. Just a nickname.</p>`);
   // Effet pinceau « out » sur le logo avant de quitter l'accueil
   const out=fn=>{const h=app.querySelector('.hero');if(!h||calm())return fn();h.classList.add('out');setTimeout(fn,800)};
-  $('jn').onclick=()=>{const c=$('cd').value.trim().toUpperCase(),n=$('nm').value.trim();if(!n||c.length!==4)return join(c,n);out(()=>join(c,n))};
-  if($('mk'))$('mk').onclick=()=>{if(!$('nm').value.trim())return create();out(create)};
+  // Anti double-clic : pendant le chargement, les 2 boutons sont bloqués (« Joining… ») ; ils se débloquent seulement en cas d'erreur.
+  // On vérifie tout AVANT l'effet gomme : en cas d'erreur, le logo reste affiché.
+  let busy=false;
+  const lock=(b,txt)=>{busy=true;[$('jn'),$('mk')].forEach(x=>{if(x){x.disabled=true;x.dataset.t=x.dataset.t||x.textContent}});b.textContent=txt};
+  const unlock=()=>{busy=false;[$('jn'),$('mk')].forEach(x=>{if(x){x.disabled=false;x.textContent=x.dataset.t}})};
+  const go=async(b,txt,fn)=>{if(busy)return;lock(b,txt);const code=await fn();if(code)out(()=>enter(code));else unlock()};
+  $('jn').onclick=()=>go($('jn'),'Joining…',()=>join($('cd').value.trim().toUpperCase(),cleanName($('nm').value)));
+  if($('mk'))$('mk').onclick=()=>go($('mk'),'Creating…',create);
+  $('nm').onkeydown=$('cd').onkeydown=e=>{if(e.key==='Enter')$('jn').click()};
   $('how').onclick=howTo;
   animate('home');
   $('cd').oninput=e=>{e.target.value=e.target.value.toUpperCase()}; // code de salle toujours en majuscules
 }
+// Pseudo nettoyé (espaces en trop enlevés) ; deux pseudos sont « les mêmes » sans tenir compte des majuscules ni des espaces
+const cleanName=n=>(n||'').replace(/\s+/g,' ').trim();
+const sameName=(a,b)=>cleanName(a).toLowerCase()===cleanName(b).toLowerCase();
+// Renvoient le code de la salle si c'est bon (puis home() lance l'effet gomme et entre), sinon affichent l'erreur et renvoient null
 async function create(){
-  const name=$('nm').value.trim();if(!name)return err('Enter a nickname.');
+  const name=cleanName($('nm').value);if(!name){err('Enter a nickname.');return null}
   const code=Array.from({length:4},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.random()*31|0]).join('');
   pid=uid();
-  try{await db.ref('rooms/'+code).set({ver:VERSION,host:pid,phase:'lobby',round:0,players:{[pid]:{name,score:0}}})}catch(e){return err('Connection failed. Check your network.')}
-  enter(code);
+  try{await db.ref('rooms/'+code).set({ver:VERSION,host:pid,phase:'lobby',round:0,players:{[pid]:{name,score:0}}})}catch(e){err('Connection failed. Check your network.');return null}
+  return code;
 }
 async function join(code,name){
-  if(!name)return err('Enter a nickname.');
-  if(code.length!==4)return err('The room code has 4 characters.');
-  let s;try{s=await db.ref('rooms/'+code).get()}catch(e){return err('Connection failed. Check your network.')}
-  if(!s.exists())return err('Room not found. Check the code.');
-  const r=s.val(),ps=Object.values(r.players||{});
-  if(ps.length>=CONFIG.maxPlayers)return err('The room is full.');
-  if(ps.some(p=>p.name.toLowerCase()===name.toLowerCase()))return err('This nickname is taken.');
-  pid=uid();await db.ref(`rooms/${code}/players/${pid}`).set({name,score:0});enter(code);
+  if(!name){err('Enter a nickname.');return null}
+  if(code.length!==4){err('The room code has 4 characters.');return null}
+  let s;try{s=await db.ref('rooms/'+code).get()}catch(e){err('Connection failed. Check your network.');return null}
+  if(!s.exists()){err('Room not found. Check the code.');return null}
+  // Inscription en TRANSACTION : Firebase vérifie sur la vraie liste, au même moment, que la salle n'est pas pleine et que le pseudo est libre
+  // (deux joueurs qui rejoignent en même temps avec le même pseudo : un seul passe).
+  const me=uid();let why='';
+  try{
+    const t=await db.ref(`rooms/${code}/players`).transaction(ps=>{ps=ps||{};const l=Object.values(ps);
+      if(l.length>=CONFIG.maxPlayers){why='full';return}
+      if(l.some(p=>p&&sameName(p.name,name))){why='taken';return}
+      why='';ps[me]={name,score:0};return ps});
+    if(!t||!t.committed){err(why==='full'?'The room is full.':'This nickname is already taken in this room. Choose another one.');return null}
+  }catch(e){err('Connection failed. Check your network.');return null}
+  pid=me;return code;
 }
 function enter(code){
   prevR=null;lastLeft='';room=code;done=0;lastPhase=null;store.set('fof',JSON.stringify({code,pid}));ref=db.ref('rooms/'+code);
